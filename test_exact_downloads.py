@@ -66,6 +66,7 @@ def run():
         page.wait_for_load_state('networkidle')
         print("Reports page loaded.")
 
+        success_count = 0
         for r_cfg in REPORTS_CONFIG:
             rep_id = r_cfg["id"]
             sec = r_cfg["section"]
@@ -118,11 +119,32 @@ def run():
                 dest_path = os.path.join(DOWNLOAD_DIR, dest_file)
                 download.save_as(dest_path)
                 print(f"   -> SUCCESS! Saved to {dest_path}")
+                success_count += 1
                 
             except PlaywrightTimeoutError:
                 print(f"   -> TIMEOUT ERROR: Failed to generate/download '{name}' within limit.")
+                # Diagnostic: Capture a screenshot of the error page to see if it is blocked/Cloudflare!
+                err_screenshot_path = os.path.join(PROJECT_DIR, f"error_screenshot_{rep_id}.png")
+                try:
+                    page.screenshot(path=err_screenshot_path, full_page=True)
+                    print(f"   [Diagnostic] Error screenshot saved to: {err_screenshot_path}")
+                    print(f"   [Diagnostic] Page URL: {page.url}")
+                    print(f"   [Diagnostic] Page Title: {page.title()}")
+                except Exception as ex:
+                    print(f"   [Diagnostic] Failed to save screenshot: {ex}")
             except Exception as e:
                 print(f"   -> ERROR: {e}")
+                err_screenshot_path = os.path.join(PROJECT_DIR, f"error_screenshot_{rep_id}.png")
+                try:
+                    page.screenshot(path=err_screenshot_path, full_page=True)
+                    print(f"   [Diagnostic] Error screenshot saved to: {err_screenshot_path}")
+                except:
+                    pass
+
+        # If any of the required downloads failed, exit with a non-zero code!
+        if success_count < len(REPORTS_CONFIG):
+            print(f"\nERROR: Only {success_count}/{len(REPORTS_CONFIG)} reports downloaded successfully!")
+            sys.exit(1)
 
         print("\nAll downloads finished. Closing browser.")
         browser.close()
