@@ -6,17 +6,16 @@ A automação elimina todo o trabalho manual diário de login, geração de rela
 
 ---
 
-## Como Funciona (Arquitetura)
+Como Funciona (Arquitetura)
 
-1. **Fase 1: Download (Playwright):** Um navegador *headless* faz login no Portal da Brasil Júnior, navega até a aba de relatórios da federação, aciona a atualização de 3 relatórios estratégicos, monitora até que estejam prontos e realiza o download de forma estruturada.
+1. **Fase 1: Download Invisível (Playwright):** Um navegador *headless* faz login no Portal da Brasil Júnior, navega até a aba de relatórios da federação, aciona a atualização de 3 relatórios estratégicos, monitora até que estejam prontos e realiza o download de forma estruturada.
 2. **Fase 2: Auto-Alinhamento:** O script lê os arquivos Excel locais e a sua planilha de Tracking, mapeia os cabeçalhos por nome (não por posição) e atualiza apenas as células de dados correspondentes. Se a BJ mudar o layout ou adicionar novas colunas, elas serão colocadas no final automaticamente **sem quebrar nenhuma fórmula**
-3. **Fase 3: Alertas:** Ao final de cada execução, o script emite uma notificação nativa no seu PC (testei só no meu Mac) com efeitos sonoros
 
 ---
 
 ## Estrutura de Arquivos
 
-*   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2 -> Alertas).
+*   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2).
 *   `test_exact_downloads.py`: Script do Playwright para navegação e download do portal BJ.
 *   `update_sheets.py`: Script de leitura de Excel e escrita auto-alinhada no Google Sheets via API.
 *   `validate_sheets.py`: Script de diagnóstico que lê os indicadores do Dashboard para validar a consistência das fórmulas após cada atualização.
