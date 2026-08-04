@@ -8,7 +8,7 @@ ENV/
 downloads/
 *.xlsx
 *.png
-*.txt
+page_elements.txt
 
 # Python cache and metadata
 __pycache__/

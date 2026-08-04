@@ -1,0 +1,44 @@
+name: Daily Tracking Synchronization
+
+on:
+  schedule:
+    # 08:00 AM Brasília time (UTC-3) is 11:00 AM UTC
+    - cron: '0 11 * * *'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+
+jobs:
+  sync:
+    name: Run Daily Sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright Chromium Browser
+        run: |
+          playwright install chromium
+
+      - name: Create Google Credentials File
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > dde-projeto-9ed22179e048.json
+
+      - name: Execute Daily Sync Script
+        env:
+          PORTAL_EMAIL: ${{ secrets.PORTAL_EMAIL }}
+          PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
+        run: |
+          mkdir -p downloads
+          python daily_sync.py
