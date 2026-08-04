@@ -1,0 +1,32 @@
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Excel downloads and temp media
+downloads/
+*.xlsx
+*.png
+*.txt
+
+# Python cache and metadata
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# SENSITIVE CREDENTIALS (NEVER COMMIT!)
+.env
+*.json
+auth.json
+*.pem
+*.key
+credentials*.json
+dde-projeto-*.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
