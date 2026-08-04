@@ -10,7 +10,10 @@ LOGIN_URL = "https://portal.brasiljunior.org.br/"
 REPORTS_URL = "https://portal.brasiljunior.org.br/federacoes/8/relatorios"
 EMAIL = os.getenv("PORTAL_EMAIL")
 PASSWORD = os.getenv("PORTAL_PASSWORD")
-DOWNLOAD_DIR = "/Users/Arthur/Documents/Juniores/downloads"
+
+# Dynamically resolve download directory
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
 
 REPORTS_CONFIG = [
     {

@@ -8,15 +8,18 @@ from dotenv import load_dotenv
 # Load local environment variables from .env file
 load_dotenv()
 
+# Dynamically resolve project directory
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Get credentials file path (resolve relative path to project directory)
 credentials_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "dde-projeto-9ed22179e048.json")
 if os.path.isabs(credentials_filename):
     CREDENTIALS_PATH = credentials_filename
 else:
-    CREDENTIALS_PATH = os.path.join("/Users/Arthur/Documents/Juniores", credentials_filename)
+    CREDENTIALS_PATH = os.path.join(PROJECT_DIR, credentials_filename)
 
 SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "163X5ADTJkHXK4INVs4KPdAXveUXhz0sYEoDGIdHWdOM")
-DOWNLOAD_DIR = "/Users/Arthur/Documents/Juniores/downloads"
+DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
 
 REPORTS_TO_UPDATE = [
     {
