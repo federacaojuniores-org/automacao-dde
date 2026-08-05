@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from dotenv import load_dotenv
@@ -57,7 +58,10 @@ def run():
         
         print("Submitting login form...")
         page.click("button[type='submit'], button:has-text('Login'), button:has-text('Entrar'), input[type='submit']")
-        page.wait_for_load_state('networkidle')
+        
+        print("Waiting for portal dashboard to load (authenticating)...")
+        # Wait for "Olá" (as in "Olá, João!") or "Início" or "Dashboard" text to render, confirming full authentication
+        page.wait_for_selector("text=Olá, text=Dashboard, text=Início", timeout=30000)
         print("Login complete.")
 
         print(f"Navigating to reports page: {REPORTS_URL}...")
