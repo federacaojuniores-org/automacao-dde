@@ -60,8 +60,8 @@ def run():
         page.click("button[type='submit'], button:has-text('Login'), button:has-text('Entrar'), input[type='submit']")
         
         print("Waiting for portal dashboard to load (authenticating)...")
-        # Wait for "Olá" (as in "Olá, João!") or "Início" or "Dashboard" text to render, confirming full authentication
-        page.wait_for_selector("text=Olá, text=Dashboard, text=Início", timeout=30000)
+        # Wait for URL redirect back to portal dashboard (robust and independent of browser language/locale!)
+        page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
         print("Login complete.")
 
         print(f"Navigating to reports page: {REPORTS_URL}...")
