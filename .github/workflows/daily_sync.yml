@@ -2,9 +2,9 @@ name: Daily Tracking Synchronization
 
 on:
   schedule:
-    # 08:00 AM Brasília time (UTC-3) is 11:00 AM UTC
-    - cron: '0 11 * * *'
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+    # 08:00 AM and 06:00 PM (18:00) Brasília time (UTC-3) are 11:00 AM and 09:00 PM (21:00) UTC
+    - cron: '0 11,21 * * *'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
 
 jobs:
   sync:

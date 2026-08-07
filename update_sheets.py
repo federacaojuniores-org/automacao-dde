@@ -1,6 +1,6 @@
 import os
 import openpyxl
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
@@ -159,9 +159,10 @@ def main():
     for report in REPORTS_TO_UPDATE:
         update_sheet_auto_aligned(service, report["filename"], report["sheet_name"])
         
-    # Final Step: Automatically update the Dashboard reference date in C3 to today's date!
-    today_str = datetime.today().strftime("%d/%m/%Y")
-    print(f"\n--- Updating reference date in '[REDE] Dashboard'!C3 to today: {today_str} ---")
+    # Final Step: Automatically update the Dashboard reference date in C3 to Brasília today's date!
+    now_brasilia = datetime.utcnow() - timedelta(hours=3)
+    today_str = now_brasilia.strftime("%d/%m/%Y")
+    print(f"\n--- Updating reference date in '[REDE] Dashboard'!C3 to Brasília date: {today_str} ---")
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="'[REDE] Dashboard'!C3",
@@ -170,8 +171,8 @@ def main():
     ).execute()
     print("Dashboard reference date updated successfully!")
     
-    # Update the last updated log in B4 (merged B-H4) to: "Dados atualizados pela última vez em: dd/MM/yy - hh:mm"
-    now_str = datetime.today().strftime("%d/%m/%y - %H:%M")
+    # Update the last updated log in B4 (merged B-H4) to: "Dados atualizados pela última vez em: dd/MM/yy - hh:mm" (Brasília Time!)
+    now_str = now_brasilia.strftime("%d/%m/%y - %H:%M")
     timestamp_text = f"Dados atualizados pela última vez em: {now_str}"
     print(f"--- Updating last updated log in '[REDE] Dashboard'!B4 to: '{timestamp_text}' ---")
     service.spreadsheets().values().update(
