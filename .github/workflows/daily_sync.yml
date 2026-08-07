@@ -42,3 +42,14 @@ jobs:
         run: |
           mkdir -p downloads
           python daily_sync.py
+
+      - name: Upload Error Screenshots on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-screenshots
+          path: |
+            *.png
+            downloads/*.png
+            /Users/Arthur/Documents/Juniores/*.png
+          if-no-files-found: ignore

@@ -60,9 +60,30 @@ def run():
         page.click("button[type='submit'], button:has-text('Login'), button:has-text('Entrar'), input[type='submit']")
         
         print("Waiting for portal dashboard to load (authenticating)...")
-        # Wait for URL redirect back to portal dashboard (robust and independent of browser language/locale!)
-        page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
-        print("Login complete.")
+        try:
+            # Wait for URL redirect back to portal dashboard (robust and independent of browser language/locale!)
+            page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
+            print("Login complete.")
+        except PlaywrightTimeoutError as te:
+            print("   -> LOGIN TIMEOUT: Failed to redirect back to portal dashboard.")
+            err_screenshot_path = os.path.join(PROJECT_DIR, "login_error_screenshot.png")
+            try:
+                page.screenshot(path=err_screenshot_path, full_page=True)
+                print(f"   [Diagnostic] Login error screenshot saved to: {err_screenshot_path}")
+                print(f"   [Diagnostic] Page URL: {page.url}")
+                print(f"   [Diagnostic] Page Title: {page.title()}")
+            except Exception as ex:
+                print(f"   [Diagnostic] Failed to save screenshot: {ex}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"   -> LOGIN ERROR: {e}")
+            err_screenshot_path = os.path.join(PROJECT_DIR, "login_error_screenshot.png")
+            try:
+                page.screenshot(path=err_screenshot_path, full_page=True)
+                print(f"   [Diagnostic] Login error screenshot saved to: {err_screenshot_path}")
+            except:
+                pass
+            sys.exit(1)
 
         print(f"Navigating to reports page: {REPORTS_URL}...")
         page.goto(REPORTS_URL)
