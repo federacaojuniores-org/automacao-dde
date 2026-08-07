@@ -134,12 +134,16 @@ def run():
                 card_text = repr(row_locator.inner_text().strip())
                 print(f"   Resolved card: {card_text[:120]}...")
                 
-                # 3. Trigger update
-                print("3. Clicking 'Atualizar' button...")
+                # 3. Trigger update (only if the 'Atualizar' button is visible/exists!)
+                print("3. Checking if 'Atualizar' button is visible...")
                 atualizar_btn = row_locator.locator("button:has-text('Atualizar'), a:has-text('Atualizar')").first
-                atualizar_btn.click()
-                print("   Update triggered! Waiting 5 seconds before checking download button...")
-                time.sleep(5)
+                if atualizar_btn.is_visible():
+                    print("   Clicking 'Atualizar' button...")
+                    atualizar_btn.click()
+                    print("   Update triggered! Waiting 5 seconds before checking download button...")
+                    time.sleep(5)
+                else:
+                    print("   'Atualizar' button not visible (report already generated recently or on cooldown). Skipping update click...")
                 
                 # 4. Wait for Baixar button
                 print("4. Waiting for 'Baixar' button to become visible and active...")
