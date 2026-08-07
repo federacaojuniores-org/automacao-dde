@@ -61,30 +61,24 @@ def run():
         
         print("Waiting for portal dashboard to load (authenticating)...")
         try:
-            # Active polling loop: wait for the URL to change away from the credentials submission
+            # Active polling loop: wait for either direct redirect OR the product selection button to appear in DOM
             print("   Waiting for authentication redirection...")
-            for _ in range(15):
+            portal_btn = page.locator("text=Portal BJ, a:has-text('Portal BJ'), button:has-text('Portal BJ')").first
+            
+            for _ in range(40):  # Poll every 1s for up to 40 seconds (highly robust against cloud network lag!)
                 current_url = page.url
                 if "portal.brasiljunior.org.br" in current_url:
+                    print("   Direct redirect to portal dashboard detected!")
                     break
-                time.sleep(1)
-            
-            current_url = page.url
-            print(f"Current URL after login redirection: {current_url}")
-            
-            # If we land on the BJID domain (can be either the root "/" or "/sign-in" path!)
-            if "id.brasiljunior.org.br" in current_url:
-                print("BJID domain detected. Checking if intermediate product selection screen is visible...")
-                portal_btn = page.locator("text=Portal BJ, a:has-text('Portal BJ'), button:has-text('Portal BJ')").first
                 
-                # Check if the "Portal BJ" button is visible (wait up to 10 seconds for it to render)
-                try:
-                    portal_btn.wait_for(state="visible", timeout=10000)
-                    print("Intermediate selection screen confirmed! Clicking 'Portal BJ' button...")
+                # Check if the "Portal BJ" button is rendered and visible on screen
+                if portal_btn.is_visible():
+                    print("   Intermediate 'Portal BJ' button visible! Clicking it to proceed...")
                     portal_btn.click()
-                    print("   'Portal BJ' button clicked! Waiting for redirect to portal...")
-                except Exception as ex_btn:
-                    print("   'Portal BJ' button not visible on BJID page, skipping selection click.")
+                    print("   'Portal BJ' button clicked successfully!")
+                    break
+                
+                time.sleep(1)
             
             # Wait for final URL redirect back to portal dashboard
             page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
