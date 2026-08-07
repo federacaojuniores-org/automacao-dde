@@ -63,7 +63,7 @@ def run():
         try:
             # Active polling loop: wait for either direct redirect OR the product selection button to appear in DOM
             print("   Waiting for authentication redirection...")
-            portal_btn = page.locator("text=Portal BJ, a:has-text('Portal BJ'), button:has-text('Portal BJ')").first
+            portal_btn = page.locator("text=Portal BJ").first
             
             for _ in range(40):  # Poll every 1s for up to 40 seconds (highly robust against cloud network lag!)
                 current_url = page.url
