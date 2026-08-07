@@ -61,19 +61,30 @@ def run():
         
         print("Waiting for portal dashboard to load (authenticating)...")
         try:
-            # Wait a few seconds for redirects to settle and check the current URL
-            time.sleep(5)
+            # Active polling loop: wait for the URL to change away from the sign-in form
+            print("   Waiting for authentication redirection...")
+            for _ in range(30):
+                current_url = page.url
+                if "portal.brasiljunior.org.br" in current_url:
+                    break
+                # If we are on BJID but NOT on the sign-in form (meaning we successfully logged in and are on the selection screen!)
+                if "id.brasiljunior.org.br" in current_url and "sign-in" not in current_url:
+                    break
+                time.sleep(1)
+            
             current_url = page.url
-            print(f"Current URL after login submit: {current_url}")
+            print(f"Current URL after login redirection: {current_url}")
             
             # If we land on the intermediate "BJID" product selection page (typical on fresh/anonymous runs!)
-            if "id.brasiljunior.org.br" in current_url:
+            if "id.brasiljunior.org.br" in current_url and "sign-in" not in current_url:
                 print("Intermediate 'BJID' product selection page detected. Clicking 'Portal BJ' button...")
                 portal_btn = page.locator("text=Portal BJ, a:has-text('Portal BJ'), button:has-text('Portal BJ')").first
+                # Wait explicitly for the button to render on screen before clicking (eliminates race conditions!)
+                portal_btn.wait_for(state="visible", timeout=10000)
                 portal_btn.click()
                 print("   'Portal BJ' button clicked! Waiting for redirect to portal...")
             
-            # Wait for URL redirect back to portal dashboard
+            # Wait for final URL redirect back to portal dashboard
             page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
             print("Login complete.")
         except PlaywrightTimeoutError as te:
