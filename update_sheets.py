@@ -170,6 +170,18 @@ def main():
     ).execute()
     print("Dashboard reference date updated successfully!")
     
+    # Update the last updated log in B4 (merged B-H4) to: "Dados atualizados pela última vez em: dd/MM/yy - hh:mm"
+    now_str = datetime.today().strftime("%d/%m/%y - %H:%M")
+    timestamp_text = f"Dados atualizados pela última vez em: {now_str}"
+    print(f"--- Updating last updated log in '[REDE] Dashboard'!B4 to: '{timestamp_text}' ---")
+    service.spreadsheets().values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range="'[REDE] Dashboard'!B4",
+        valueInputOption="USER_ENTERED",
+        body={"values": [[timestamp_text]]}
+    ).execute()
+    print("Dashboard last updated log updated successfully!")
+    
     print("\nAll 3 destination sheets and the Dashboard reference date have been successfully updated with self-aligned columns!")
 
 if __name__ == "__main__":
