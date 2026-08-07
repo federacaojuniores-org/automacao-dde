@@ -61,7 +61,19 @@ def run():
         
         print("Waiting for portal dashboard to load (authenticating)...")
         try:
-            # Wait for URL redirect back to portal dashboard (robust and independent of browser language/locale!)
+            # Wait a few seconds for redirects to settle and check the current URL
+            time.sleep(5)
+            current_url = page.url
+            print(f"Current URL after login submit: {current_url}")
+            
+            # If we land on the intermediate "BJID" product selection page (typical on fresh/anonymous runs!)
+            if "id.brasiljunior.org.br" in current_url:
+                print("Intermediate 'BJID' product selection page detected. Clicking 'Portal BJ' button...")
+                portal_btn = page.locator("text=Portal BJ, a:has-text('Portal BJ'), button:has-text('Portal BJ')").first
+                portal_btn.click()
+                print("   'Portal BJ' button clicked! Waiting for redirect to portal...")
+            
+            # Wait for URL redirect back to portal dashboard
             page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
             print("Login complete.")
         except PlaywrightTimeoutError as te:
