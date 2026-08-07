@@ -78,7 +78,7 @@ def run():
                     print("   'Portal BJ' button clicked successfully!")
                     break
                 
-                time.sleep(1)
+                page.wait_for_timeout(1000)  # Native non-blocking Playwright sleep!
             
             # Wait for final URL redirect back to portal dashboard
             page.wait_for_url("https://portal.brasiljunior.org.br/**", timeout=30000)
