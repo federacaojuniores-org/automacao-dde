@@ -122,7 +122,35 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
                 aligned_row.append("")
         aligned_values.append(aligned_row)
 
-    # 4. Clear old data from Google Sheets (preserving headers and Table structure)
+    # 4. Check and expand Grid Capacity if needed!
+    print(f"  Checking grid capacity for '{sheet_name}'...")
+    spreadsheet_info = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+    sheet_id = None
+    current_rows = 0
+    for s in spreadsheet_info.get('sheets', []):
+        if s.get("properties", {}).get("title") == sheet_name:
+            sheet_id = s.get("properties", {}).get("sheetId")
+            current_rows = s.get("properties", {}).get("gridProperties", {}).get("rowCount", 0)
+            break
+            
+    required_rows = len(aligned_values)
+    if sheet_id is not None and required_rows > current_rows:
+        rows_to_add = required_rows - current_rows + 500  # Add 500 extra buffer rows
+        print(f"  [Capacity Expansion] Sheet has {current_rows} rows. Appending {rows_to_add} new rows...")
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={
+                "requests": [{
+                    "appendDimension": {
+                        "sheetId": sheet_id,
+                        "dimension": "ROWS",
+                        "length": rows_to_add
+                    }
+                }]
+            }
+        ).execute()
+
+    # 5. Clear old data from Google Sheets (preserving headers and Table structure)
     print(f"  Clearing old values in Google Sheet tab: '{sheet_name}' (preserving headers)...")
     service.spreadsheets().values().clear(
         spreadsheetId=SPREADSHEET_ID,
