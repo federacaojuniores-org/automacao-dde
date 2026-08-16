@@ -4,6 +4,12 @@ from datetime import datetime, timedelta
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
+import socket
+import time
+
+# Set a generous global socket timeout to prevent httplib2 from dropping stale connections 
+# after the long Playwright download phase
+socket.setdefaulttimeout(120)
 
 # Load local environment variables from .env file
 load_dotenv()
@@ -167,13 +173,10 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
         end_row = i + len(chunk)
         print(f"    Writing rows {start_row} to {end_row}...")
         
-        import socket
-        import time
         # Add retry loop for socket timeouts
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                socket.setdefaulttimeout(120) # 2 minutes timeout for the socket
                 service.spreadsheets().values().update(
                     spreadsheetId=SPREADSHEET_ID,
                     range=f"'{sheet_name}'!A{start_row}",
