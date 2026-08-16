@@ -157,8 +157,8 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
         range=f"'{sheet_name}'!A1:ZZ100000"
     ).execute()
     
-    # 5. Write the aligned values starting at A1 in chunks (robust against socket timeouts!)
-    chunk_size = 2000
+    # 6. Write the aligned values starting at A1 in chunks (robust against socket timeouts!)
+    chunk_size = 500
     print(f"  Writing aligned values in chunks of {chunk_size} rows in tab: '{sheet_name}'...")
     
     for i in range(0, len(aligned_values), chunk_size):
@@ -166,12 +166,26 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
         start_row = i + 1
         end_row = i + len(chunk)
         print(f"    Writing rows {start_row} to {end_row}...")
-        service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"'{sheet_name}'!A{start_row}",
-            valueInputOption="USER_ENTERED",
-            body={"values": chunk}
-        ).execute()
+        
+        import socket
+        import time
+        # Add retry loop for socket timeouts
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                socket.setdefaulttimeout(120) # 2 minutes timeout for the socket
+                service.spreadsheets().values().update(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range=f"'{sheet_name}'!A{start_row}",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": chunk}
+                ).execute()
+                break # Success, exit retry loop
+            except Exception as e:
+                print(f"      [Warning] Chunk write failed (Attempt {attempt+1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep(5) # Wait before retrying
     
     print(f"  SUCCESS: Updated {len(aligned_values)} rows in Google Sheets!")
 
