@@ -1,0 +1,156 @@
+{
+  "_leia_me": "Configuração da distribuição das planilhas individuais das EJs. Troque o bloco 'premiacao' quando mudar a premiação vigente.",
+  "aba_acessos": "[ACESSO] Planilhas EJs",
+  "premiacao": {
+    "nome": "Prêmio ENCEJ 2026",
+    "aba": "Prêmio ENCEJ",
+    "coluna_ej": "EJ",
+    "rotulo_data_corte": "Data de Corte da Corrida (P3):",
+    "texto_data_corte": "Data de corte da Corrida (P3): {data}",
+    "criterios": [
+      {
+        "grupo": "P1 | Maturidade (IMS)"
+      },
+      {
+        "campo": "IMS",
+        "descricao": "Índice de Maturidade e Sustentabilidade. Combina fator de cluster, atingimento da meta, CORS, CSAT e trilha."
+      },
+      {
+        "campo": "Rank P1 (IMS)",
+        "descricao": "Posição da EJ na etapa P1.",
+        "formato": "posicao"
+      },
+      {
+        "grupo": "P2 | Evolução de cluster"
+      },
+      {
+        "campo": "Índice Cluster Atual",
+        "descricao": "Índice de cluster projetado para 31/12, o mesmo índice previsto da Visão Geral.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Cluster 2026",
+        "descricao": "Cluster em que o índice projetado cai na régua de 2026."
+      },
+      {
+        "campo": "Índice P/ Subir",
+        "descricao": "Índice necessário para passar ao próximo cluster.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Índice Cluster 2025",
+        "descricao": "Índice de cluster consolidado de 2025.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Cluster 2025",
+        "descricao": "Cluster da EJ em 2025."
+      },
+      {
+        "campo": "Piso 2026",
+        "descricao": "Limite inferior da faixa do cluster em 2026.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Teto 2026",
+        "descricao": "Limite superior da faixa do cluster em 2026.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Piso 2025",
+        "descricao": "Limite inferior da faixa do cluster em 2025.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Teto 2025",
+        "descricao": "Limite superior da faixa do cluster em 2025.",
+        "formato": "inteiro"
+      },
+      {
+        "campo": "Posição 2026",
+        "descricao": "Posição contínua na régua de clusters, somando o cluster e a fração percorrida dentro da faixa."
+      },
+      {
+        "campo": "Posição 2025",
+        "descricao": "A mesma posição contínua, calculada para 2025."
+      },
+      {
+        "campo": "Evolução (P2)",
+        "descricao": "Posição 2026 menos posição 2025. É a nota da etapa P2."
+      },
+      {
+        "campo": "Rank P2",
+        "descricao": "Posição da EJ na etapa P2.",
+        "formato": "posicao"
+      },
+      {
+        "grupo": "P3 | Corrida"
+      },
+      {
+        "campo": "Faturamento desde Data de corte",
+        "descricao": "Faturamento auditado desde a data de corte da Corrida."
+      },
+      {
+        "campo": "Meta Fat. Ano",
+        "descricao": "Meta anual de faturamento da EJ."
+      },
+      {
+        "campo": "Atingimento Meta",
+        "descricao": "Faturamento desde a data de corte ÷ meta anual."
+      },
+      {
+        "campo": "NOTA P3",
+        "descricao": "Nota da Corrida."
+      },
+      {
+        "campo": "Rank P3",
+        "descricao": "Posição da EJ na etapa P3.",
+        "formato": "posicao"
+      },
+      {
+        "grupo": "P4 | Rede e impacto"
+      },
+      {
+        "campo": "Rep. Fat. Colaborativo",
+        "descricao": "Faturamento colaborativo ÷ faturamento total."
+      },
+      {
+        "campo": "Fat. Colab.",
+        "descricao": "Faturamento colaborativo em 2026."
+      },
+      {
+        "campo": "Engajamento com MEJ",
+        "descricao": "Percentual de membros engajados com o MEJ."
+      },
+      {
+        "campo": "Bloco Evolução",
+        "descricao": "Nota do bloco de evolução da P4."
+      },
+      {
+        "campo": "Fat. / Membro",
+        "descricao": "Faturamento ÷ número de membros."
+      },
+      {
+        "campo": "Projetos de Impacto",
+        "descricao": "Projetos de impacto registrados."
+      },
+      {
+        "campo": "Políticas D&I",
+        "descricao": "Políticas de diversidade e inclusão registradas."
+      },
+      {
+        "campo": "Bloco Impacto",
+        "descricao": "Nota do bloco de impacto da P4."
+      },
+      {
+        "campo": "NOTA P4",
+        "descricao": "Nota da etapa P4."
+      },
+      {
+        "campo": "Rank P4",
+        "descricao": "Posição da EJ na etapa P4.",
+        "formato": "posicao"
+      }
+    ]
+  }
+}

@@ -31,6 +31,17 @@ def main():
         print("ERROR: Update phase failed!")
         sys.exit(1)
         
+    # 3. Distribute the master data to each EJ's individual spreadsheet
+    print("\n--- Phase 3: Updating the individual EJ spreadsheets ---")
+    ejs_res = subprocess.run([sys.executable, "sync_planilhas_ejs.py"], capture_output=True, text=True)
+    print(ejs_res.stdout)
+    if ejs_res.stderr:
+        print("EJ Sync Stderr:", ejs_res.stderr)
+
+    if ejs_res.returncode != 0:
+        print("ERROR: EJ spreadsheets phase finished with errors (see the access tab in the master).")
+        sys.exit(1)
+
     print("\n=== DAILY SYNC COMPLETED SUCCESSFULLY ===")
 
 if __name__ == "__main__":
