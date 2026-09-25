@@ -241,6 +241,10 @@ def ler_mestre(service, cfg):
     nomes = ["painel", "farol", "cors", "geral", "acum"]
     snap = {n: x.get("values", []) for n, x in zip(nomes, r)}
     snap["premio"] = p.get("values", [])
+    # nas colunas de texto dos monitoramentos vale o que aparece na mestre (ex.: "100%" e não 1)
+    f = service.spreadsheets().values().batchGet(
+        spreadsheetId=MASTER_ID, ranges=ranges[3:], valueRenderOption="FORMATTED_VALUE").execute()["valueRanges"]
+    snap["geral_fmt"], snap["acum_fmt"] = (x.get("values", []) for x in f)
     return snap
 
 
@@ -322,12 +326,15 @@ def indexar(snap):
         rows = snap[tab]
         if not rows:
             return [], {}
+        rows_f = snap.get(tab + "_fmt") or rows
+        if len(rows_f) != len(rows):
+            rows_f = rows  # leituras fora de sincronia: usa só os valores brutos
         hdr = [str(x).strip() for x in rows[0]]
         out = {}
-        for row in rows[1:]:
+        for row, row_f in zip(rows[1:], rows_f[1:]):
             row = pad(row)
             if str(row[0]).strip():
-                out.setdefault(txt(row[0]), []).append(row)
+                out.setdefault(txt(row[0]), []).append((row, pad(row_f)))
         return hdr, out
 
     return {"painel": P, "farol": F, "cors": C, "ref_mes": l1[4], "ref_data": l1[5], "datas_cors": datas_cors,
@@ -369,10 +376,10 @@ def solucoes(G, row):
     return "; ".join(out)
 
 
-def celula_geral(G, row, key, typ):
+def celula_geral(G, Gt, row, key, typ):
     if key == "_SOL":
         return solucoes(G, row)
-    v = G(row, key)
+    v = Gt(row, key) if typ in ("t", "tw") else G(row, key)
     if key == "STATUS_FINALIZACAO":
         return {"1": "Finalizado", "0": "Em andamento"}.get(txt(v), txt(v))
     if typ == "d":
@@ -384,8 +391,8 @@ def celula_geral(G, row, key, typ):
     return txt(v)
 
 
-def celula_acum(A, row, key, typ, ano):
-    v = A(row, key)
+def celula_acum(A, At, row, key, typ, ano):
+    v = At(row, key) if typ in ("t", "tw") else A(row, key)
     if key == "MES":
         return serial(datetime(ano, int(to_num(v)), 1))
     if typ == "dt":
@@ -453,22 +460,27 @@ def montar_ej(ix, snap, cfg, eid, agora):
     # Monitoramento Geral
     gh, gmap = ix["geral"]
     gi = {k: i for i, k in enumerate(gh)}
-    G = lambda row, k: row[gi[k]] if k in gi else ""
+    G = lambda row, k: row[0][gi[k]] if k in gi else ""
+    Gt = lambda row, k: row[1][gi[k]] if k in gi else ""
     faltando = [k for k, _ in COLS_GERAL if k != "_SOL" and k not in gi]
     if faltando:
         avisos.append("colunas ausentes no Geral: " + ", ".join(faltando))
-    grow = sorted(gmap.get(eid, []), key=lambda r: to_serial(G(r, "DATA_DE_ASSINATURA")) or 0, reverse=True)
-    geral = [[celula_geral(G, r, k, t) for k, t in COLS_GERAL] for r in grow]
+    # o Portal inclui uma linha em branco para EJs sem contrato; ela não entra
+    tem_contrato = lambda r: any(txt(G(r, k)) for k in ("DATA_DE_ASSINATURA", "NOME_DO_CLIENTE", "FATURAMENTO"))
+    data_ass = lambda r: (lambda v: v if isinstance(v, float) else 0)(to_serial(G(r, "DATA_DE_ASSINATURA")))
+    grow = sorted(filter(tem_contrato, gmap.get(eid, [])), key=data_ass, reverse=True)
+    geral = [[celula_geral(G, Gt, r, k, t) for k, t in COLS_GERAL] for r in grow]
 
     # Monitoramento Acumulado
     ah, amap = ix["acum"]
     ai = {k: i for i, k in enumerate(ah)}
-    A = lambda row, k: row[ai[k]] if k in ai else ""
+    A = lambda row, k: row[0][ai[k]] if k in ai else ""
+    At = lambda row, k: row[1][ai[k]] if k in ai else ""
     faltando = [k for k, _ in COLS_ACUM if k not in ai]
     if faltando:
         avisos.append("colunas ausentes no Acumulado: " + ", ".join(faltando))
     arow = sorted((r for r in amap.get(eid, []) if txt(A(r, "MES"))), key=lambda r: int(to_num(A(r, "MES"))))
-    acum = [[celula_acum(A, r, k, t, ano) for k, t in COLS_ACUM] for r in arow]
+    acum = [[celula_acum(A, At, r, k, t, ano) for k, t in COLS_ACUM] for r in arow]
     # o acumulado colaborativo do Portal não fecha com o mensal; recalcula como soma corrida
     keys = [k for k, _ in COLS_ACUM]
     ic, ia = keys.index("FATURAMENTO_COLABORATIVO"), keys.index("FATURAMENTO_COLABORATIVO_ACUMULADO")
