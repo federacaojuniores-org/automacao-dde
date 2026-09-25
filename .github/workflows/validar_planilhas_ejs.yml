@@ -1,0 +1,44 @@
+name: Validar planilhas das EJs
+
+# Confere as planilhas das EJs contra a mestre, sem gravar nada. Rodado à mão na aba Actions.
+# O log mostra só o endereço das divergências, nunca os valores (o repositório é público).
+on:
+  workflow_dispatch:
+    inputs:
+      ejs:
+        description: "IDs das EJs separados por espaço (vazio = todas da aba de acessos)"
+        required: false
+        default: ""
+
+concurrency:
+  group: tracking
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Google Credentials File
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > dde-projeto-9ed22179e048.json
+
+      - name: Validate EJ spreadsheets
+        env:
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
+          EJS: ${{ github.event.inputs.ejs }}
+        run: |
+          ARGS=""
+          for id in $EJS; do ARGS="$ARGS --ej $id"; done
+          python validar_planilhas_ejs.py $ARGS
