@@ -179,17 +179,17 @@ def main():
                 if len(s.get("charts", [])) != graf_mod.get(t, 0):
                     prob.append(f"{t}: {len(s.get('charts', []))} gráfico(s), o modelo tem {graf_mod.get(t, 0)}")
                 prs = s.get("protectedRanges", [])
+                if t == "Simulador":
+                    # aba livre de propósito, para as EJs digitarem os cenários
+                    if prs:
+                        prob.append("Simulador: tem proteção (deveria ser livre)")
+                    continue
                 if not prs:
                     prob.append(f"{t}: sem proteção")
                 elif any(p.get("warningOnly") for p in prs):
                     prob.append(f"{t}: proteção só de aviso (deveria bloquear a edição)")
                 elif not all(sa in p.get("editors", {}).get("users", []) for p in prs):
                     prob.append(f"{t}: a conta de serviço não pode editar a área protegida")
-            sim_livre = any(u.get("startRowIndex") == 7 and u.get("endRowIndex") == 11 and u.get("startColumnIndex") == 7
-                            for p in por_aba.get("Simulador", {}).get("protectedRanges", [])
-                            for u in p.get("unprotectedRanges", []))
-            if not sim_livre:
-                prob.append("Simulador: H8:H11 não estão livres da proteção")
 
             # valores
             rng = [f"'{t}'!A1:BZ1000" for t in ABAS]
