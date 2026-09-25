@@ -33,6 +33,9 @@ jobs:
   sync-ejs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    # precisa escrever no repo só para o passo que mantém os agendamentos ativos
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -60,3 +63,18 @@ jobs:
           if [ "$COPIAR_MODELO" = "true" ]; then ARGS="--copiar-modelo"; fi
           for id in $EJS; do ARGS="$ARGS --ej $id"; done
           python sync_planilhas_ejs.py $ARGS
+
+      # O GitHub desliga os agendamentos de repositório público depois de 60 dias sem commit.
+      # Se o último commit tiver 30 dias ou mais, este passo faz um commit vazio e o prazo recomeça.
+      - name: Manter os agendamentos ativos
+        if: always()
+        run: |
+          ultimo=$(git log -1 --format=%ct)
+          dias=$(( ($(date +%s) - ultimo) / 86400 ))
+          echo "Último commit há $dias dia(s)"
+          if [ "$dias" -ge 30 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: manter os agendamentos do GitHub ativos"
+            git push
+          fi
