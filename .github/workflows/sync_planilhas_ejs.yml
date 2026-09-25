@@ -3,6 +3,7 @@ name: Planilhas das EJs
 # Copia os dados da mestre para as planilhas das EJs (sem baixar os relatórios do Portal).
 # Roda sozinho às 07:05 e 19:05 de Brasília, depois do Daily Tracking Synchronization (05:30 e 17:30).
 # Também pode ser rodado à mão na aba Actions, com a opção de informar os IDs das EJs.
+# EJ da aba de acessos sem ID da planilha ganha uma cópia do modelo na pasta do drive compartilhado.
 on:
   schedule:
     # 07:05 e 19:05 de Brasília (UTC-3) = 10:05 e 22:05 UTC; fora do minuto 00, que é o mais congestionado
@@ -17,6 +18,11 @@ on:
         description: "IDs das EJs separados por espaço (vazio = todas da aba de acessos)"
         required: false
         default: ""
+      copiar_modelo:
+        description: "Só copiar o modelo para a pasta do drive compartilhado (uso único)"
+        type: boolean
+        required: false
+        default: false
 
 # espera a atualização da mestre terminar se as duas coincidirem
 concurrency:
@@ -48,7 +54,9 @@ jobs:
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
           EJS: ${{ github.event.inputs.ejs }}
+          COPIAR_MODELO: ${{ github.event.inputs.copiar_modelo }}
         run: |
           ARGS=""
+          if [ "$COPIAR_MODELO" = "true" ]; then ARGS="--copiar-modelo"; fi
           for id in $EJS; do ARGS="$ARGS --ej $id"; done
           python sync_planilhas_ejs.py $ARGS
