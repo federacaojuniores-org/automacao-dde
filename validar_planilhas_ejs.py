@@ -200,7 +200,10 @@ def main():
 
             # erros de fórmula
             for t in ABAS:
-                errs = sorted((r, c) for (r, c), v in FV[t].items() if ERROS.match(str(v)))
+                # na _dados, a série "Faturamento real" do gráfico (coluna F) usa #N/A de propósito
+                # nas semanas futuras, para a linha parar na data de referência
+                errs = sorted((r, c) for (r, c), v in FV[t].items() if ERROS.match(str(v))
+                              and not (t == "_dados" and c == 5 and str(v) == "#N/A"))
                 if errs:
                     r, c = errs[0]
                     prob.append(f"{t}: {len(errs)} célula(s) com erro, a primeira em {col(c)}{r}")
@@ -328,9 +331,12 @@ def main():
             ua = dados.get("Controle | Última atualização")
             if not isinstance(ua, (int, float)) or S.serial(agora.replace(tzinfo=None)) - ua > 1:
                 prob.append("Controle | Última atualização com mais de 24 horas")
-            for t, ref in (("Visão Geral", (3, 9)), ("Premiação", (3, 9)), ("Simulador", (3, 9))):
-                if not str(FV[t].get(ref, "")).startswith("Atualizado em "):
-                    prob.append(f"{t}: J3 sem 'Atualizado em'")
+            if isinstance(ua, (int, float)):
+                dt = S.EPOCH + S.timedelta(minutes=round(ua * 1440))
+                carimbo = dt.strftime("%d/%m/%Y") + " às " + dt.strftime("%H:%M")
+                for t in ("Visão Geral", "Premiação", "Simulador"):
+                    if carimbo not in str(FV[t].get((3, 9), "")):
+                        prob.append(f"{t}: J3 não mostra a data e a hora da última atualização")
             if avisos:
                 prob += [f"aviso da montagem: {x}" for x in avisos]
         except Exception as e:
