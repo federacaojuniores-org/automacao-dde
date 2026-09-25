@@ -707,7 +707,9 @@ def main():
     if args.saida:
         json.dump(saida, open(args.saida, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"Concluído: {len(status) - erros} ok, {erros} com erro")
-    sys.exit(1 if erros else 0)
+    # a execução só fica vermelha (e o GitHub manda e-mail) quando a atualização quebrou de forma geral,
+    # isto é, metade ou mais das EJs falhou; erro isolado de uma EJ aparece só no Status da aba de acessos
+    sys.exit(1 if status and erros * 2 >= len(status) else 0)
 
 
 if __name__ == "__main__":
