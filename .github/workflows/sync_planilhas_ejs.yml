@@ -1,8 +1,16 @@
-name: Planilhas das EJs (manual)
+name: Planilhas das EJs
 
-# Roda só a Fase 3 (distribuição para as planilhas das EJs), sem baixar os relatórios do Portal.
-# Útil para testar ou reprocessar depois de mexer no modelo ou na aba de acessos.
+# Copia os dados da mestre para as planilhas das EJs (sem baixar os relatórios do Portal).
+# Roda sozinho às 07:05 e 19:05 de Brasília, depois do Daily Tracking Synchronization (05:30 e 17:30).
+# Também pode ser rodado à mão na aba Actions, com a opção de informar os IDs das EJs.
 on:
+  schedule:
+    # 07:05 e 19:05 de Brasília (UTC-3) = 10:05 e 22:05 UTC; fora do minuto 00, que é o mais congestionado
+    - cron: '5 10,22 * * *'
+  # e também logo depois de cada atualização da mestre que der certo, porque o GitHub às vezes atrasa os horários agendados
+  workflow_run:
+    workflows: ["Daily Tracking Synchronization"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       ejs:
@@ -10,8 +18,14 @@ on:
         required: false
         default: ""
 
+# espera a atualização da mestre terminar se as duas coincidirem
+concurrency:
+  group: tracking
+  cancel-in-progress: false
+
 jobs:
   sync-ejs:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

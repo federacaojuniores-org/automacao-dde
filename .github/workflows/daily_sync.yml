@@ -2,9 +2,14 @@ name: Daily Tracking Synchronization
 
 on:
   schedule:
-    # 08:00 AM and 06:00 PM (18:00) Brasília time (UTC-3) are 11:00 AM and 09:00 PM (21:00) UTC
-    - cron: '0 11,21 * * *'
+    # 05:30 e 17:30 de Brasília (UTC-3) = 08:30 e 20:30 UTC
+    - cron: '30 8,20 * * *'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+# não roda ao mesmo tempo que a atualização das planilhas das EJs
+concurrency:
+  group: tracking
+  cancel-in-progress: false
 
 jobs:
   sync:
