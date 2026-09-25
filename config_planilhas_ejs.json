@@ -6,10 +6,10 @@
     "aba": "Prêmio ENCEJ",
     "coluna_ej": "EJ",
     "rotulo_data_corte": "Data de Corte da Corrida (P3):",
-    "texto_data_corte": "Data de corte da Corrida (P3): {data}",
+    "texto_data_corte": "Data de corte do Elo do Amanhã (P3): {data}",
     "criterios": [
       {
-        "grupo": "P1 | Maturidade (IMS)"
+        "grupo": "P1 | Do Mapa Ao Movimento | Maturidade (IMS)"
       },
       {
         "campo": "IMS",
@@ -21,7 +21,7 @@
         "formato": "posicao"
       },
       {
-        "grupo": "P2 | Evolução de cluster"
+        "grupo": "P2 | Ponto de Virada | Evolução de cluster"
       },
       {
         "campo": "Índice Cluster Atual",
@@ -31,11 +31,6 @@
       {
         "campo": "Cluster 2026",
         "descricao": "Cluster em que o índice projetado cai na régua de 2026."
-      },
-      {
-        "campo": "Índice P/ Subir",
-        "descricao": "Índice necessário para passar ao próximo cluster.",
-        "formato": "inteiro"
       },
       {
         "campo": "Índice Cluster 2025",
@@ -57,16 +52,6 @@
         "formato": "inteiro"
       },
       {
-        "campo": "Piso 2025",
-        "descricao": "Limite inferior da faixa do cluster em 2025.",
-        "formato": "inteiro"
-      },
-      {
-        "campo": "Teto 2025",
-        "descricao": "Limite superior da faixa do cluster em 2025.",
-        "formato": "inteiro"
-      },
-      {
         "campo": "Posição 2026",
         "descricao": "Posição contínua na régua de clusters, somando o cluster e a fração percorrida dentro da faixa."
       },
@@ -80,15 +65,15 @@
       },
       {
         "campo": "Rank P2",
-        "descricao": "Posição da EJ na etapa P2.",
+        "descricao": "Posição da EJ",
         "formato": "posicao"
       },
       {
-        "grupo": "P3 | Corrida"
+        "grupo": "P3 | Elo do Amanhã | Corrida"
       },
       {
         "campo": "Faturamento desde Data de corte",
-        "descricao": "Faturamento auditado desde a data de corte da Corrida."
+        "descricao": "Faturamento auditado desde a data de corte da P3."
       },
       {
         "campo": "Meta Fat. Ano",
@@ -100,7 +85,7 @@
       },
       {
         "campo": "NOTA P3",
-        "descricao": "Nota da Corrida."
+        "descricao": "Nota da etapa P3."
       },
       {
         "campo": "Rank P3",
@@ -108,7 +93,7 @@
         "formato": "posicao"
       },
       {
-        "grupo": "P4 | Rede e impacto"
+        "grupo": "P4 | Aurora do Crepúsculo | Rede e impacto"
       },
       {
         "campo": "Rep. Fat. Colaborativo",

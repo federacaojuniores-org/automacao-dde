@@ -39,6 +39,8 @@ PAUSA_ENTRE_EJS = 2.5  # segundos; cada EJ usa 2 chamadas de escrita (limite da 
 
 T_PAINEL = "Painel de Análise [G3]"
 T_FAROL = "Farol de Cluster [G3]"
+# última linha da área de critérios na aba Premiação do modelo (a nota de rodapé fica duas linhas abaixo)
+PREM_FIM = 43
 T_CORS = "CORS"
 T_GERAL = "[MONITORAMENTO] Geral v2.0"
 T_ACUM = "[MONITORAMENTO] Acumulado v2.0"
@@ -105,7 +107,6 @@ COLS_GERAL = [
 
 COLS_ACUM = [
     ("MES", "mo"),  # Mês
-    ("ULTIMA_AUDITORIA", "dt"),  # Última auditoria
     ("FATURAMENTO", "m"),  # Faturamento do mês
     ("FATURAMENTO_ACUMULADO", "m"),  # Faturamento acumulado
     ("META_DE_REVENUE", "m"),  # Meta anual
@@ -303,6 +304,19 @@ def indexar(snap):
             break
         F[txt(row[1])] = [(f"Farol | {k}", row[j]) for j, k in cols_f]
 
+    # Régua de cluster: bloco "DE | ATÉ | CLUSTER" à direita da tabela do Farol
+    regua = []
+    jr = next((j for j in range(len(farol[3])) if str(pad(farol[3])[j]).strip().upper().startswith("RÉGUA")), None)
+    if jr is not None:
+        for row in farol[4:20]:
+            row = pad(row, jr + 3)
+            de, ate, cl = row[jr], row[jr + 1], txt(row[jr + 2])
+            m = re.fullmatch(r"C(\d)", cl.upper())
+            if m and isinstance(de, (int, float)):
+                n = m.group(1)
+                regua += [(f"Régua | Cluster {n} | Piso", de),
+                          (f"Régua | Cluster {n} | Teto", ate if isinstance(ate, (int, float)) else "")]
+
     # CORS: datas na linha 2, cabeçalhos na linha 4; dois blocos que começam em "ID" (2026 e 2025)
     h = pad(cors[3])
     ids = [j for j in range(len(cors[3])) if str(h[j]).strip() == "ID"]
@@ -337,7 +351,7 @@ def indexar(snap):
                 out.setdefault(txt(row[0]), []).append((row, pad(row_f)))
         return hdr, out
 
-    return {"painel": P, "farol": F, "cors": C, "ref_mes": l1[4], "ref_data": l1[5], "datas_cors": datas_cors,
+    return {"painel": P, "farol": F, "cors": C, "regua": regua, "ref_mes": l1[4], "ref_data": l1[5], "datas_cors": datas_cors,
             "geral": por_id("geral"), "acum": por_id("acum")}
 
 
@@ -438,7 +452,9 @@ def montar_ej(ix, snap, cfg, eid, agora):
         ("Controle | Data comparável CORS 2025", to_serial(ix["datas_cors"][1])),
         ("Controle | Nome da premiação", cfg["premiacao"]["nome"]),
         ("Controle | Data de corte premiação", corte),
-    ]
+    ] + ix["regua"]
+    if len(ix["regua"]) != 10:
+        avisos.append("régua de cluster incompleta no Farol (esperados 5 clusters)")
     dados = [[k, "" if v is None else v] for k, v in pares]
 
     # Premiação
@@ -496,14 +512,14 @@ def montar_ej(ix, snap, cfg, eid, agora):
     if acum:
         blocos.append({"range": "'Monitoramento Acumulado'!B8", "values": acum})
     # o que sobrar abaixo do que foi gravado (linhas de uma rodada anterior) é apagado
-    # a área de critérios da Premiação vai da linha 13 à 46; a 48 tem a nota de rodapé
-    if 12 + len(prem) > 46:
-        avisos.append("a premiação tem mais critérios do que cabem na aba (linhas 13 a 46)")
+    # a área de critérios da Premiação vai da linha 13 à PREM_FIM; logo abaixo fica a nota de rodapé
+    if 12 + len(prem) > PREM_FIM:
+        avisos.append(f"a premiação tem mais critérios do que cabem na aba (linhas 13 a {PREM_FIM})")
     limpar = [f"'_dados'!A{2 + len(dados)}:B150",
               f"'Monitoramento Geral'!B{8 + len(geral)}:AZ1000",
-              f"'Monitoramento Acumulado'!B{8 + len(acum)}:BH1000"]
-    if 13 + len(prem) <= 46:
-        limpar += [f"'Premiação'!B{13 + len(prem)}:B46", f"'Premiação'!G{13 + len(prem)}:H46"]
+              f"'Monitoramento Acumulado'!B{8 + len(acum)}:BG1000"]
+    if 13 + len(prem) <= PREM_FIM:
+        limpar += [f"'Premiação'!B{13 + len(prem)}:B{PREM_FIM}", f"'Premiação'!G{13 + len(prem)}:H{PREM_FIM}"]
     return nome, blocos, limpar, avisos
 
 
