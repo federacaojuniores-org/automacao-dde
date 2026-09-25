@@ -15,8 +15,8 @@ Como Funciona (Arquitetura)
 
 ## Estrutura de Arquivos
 
-*   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2 -> Phase 3).
-*   `sync_planilhas_ejs.py`: Fase 3. Copia os dados de cada EJ da planilha mestre para a planilha individual dela (só valores).
+*   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2), às 05:30 e 17:30.
+*   `sync_planilhas_ejs.py`: Copia os dados de cada EJ da planilha mestre para a planilha individual dela (só valores). Workflow próprio, às 07:05 e 19:05.
 *   `config_planilhas_ejs.json`: Nome da aba de acessos e critérios da premiação vigente, usados pela Fase 3.
 *   `test_exact_downloads.py`: Script do Playwright para navegação e download do portal BJ.
 *   `update_sheets.py`: Script de leitura de Excel e escrita auto-alinhada no Google Sheets via API.
@@ -78,7 +78,7 @@ Para acompanhar a execução, basta abrir a aba **Actions** do seu repositório 
 
 ## Planilhas individuais das EJs (Fase 3)
 
-Cada EJ tem uma cópia do modelo "Tracking da EJ" com as abas Visão Geral, Premiação, Simulador, Monitoramento Geral e Monitoramento Acumulado. O `sync_planilhas_ejs.py` roda depois da atualização da mestre e grava em cada cópia apenas valores, sem nenhuma fórmula ligada à mestre.
+Cada EJ tem uma cópia do modelo "Tracking da EJ" com as abas Visão Geral, Premiação, Simulador, Monitoramento Geral e Monitoramento Acumulado. O `sync_planilhas_ejs.py` roda no workflow "Planilhas das EJs" às 07:05 e 19:05 (horário de Brasília), depois da atualização da mestre, e grava em cada cópia apenas valores, sem nenhuma fórmula ligada à mestre.
 
 **Aba de acessos na mestre** (`[ACESSO] Planilhas EJs`): uma linha por EJ com as colunas ID, EJ, E-mail do(a) presidente, ID da planilha, Link, Última sincronização e Status. O script lê as quatro primeiras e escreve as duas últimas. Linhas sem ID da planilha ficam com o status "Sem ID da planilha". Se a aba não existir, a fase 3 termina sem fazer nada.
 
@@ -92,4 +92,4 @@ python sync_planilhas_ejs.py --ej 90            # só uma EJ
 python sync_planilhas_ejs.py                    # todas as EJs da aba de acessos
 ```
 
-No GitHub, a Fase 3 roda sozinha pelo workflow "Planilhas das EJs (manual)" (aba Actions, botão Run workflow), com a opção de informar os IDs das EJs.
+Para rodar fora do horário: aba Actions, workflow "Planilhas das EJs", botão Run workflow (dá para informar os IDs das EJs).
