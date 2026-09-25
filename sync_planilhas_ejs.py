@@ -8,7 +8,8 @@ apontando para a mestre, em quatro lugares de cada cópia:
   Monitoramento Geral!B8   contratos de 2026 da EJ
   Monitoramento Acumulado!B8  linhas mês a mês da EJ
 
-A lista de EJs vem da aba de acessos da mestre (ID, EJ, e-mail, ID da planilha, ...).
+A lista de EJs vem da aba de acessos da mestre. As colunas são achadas pelo cabeçalho (ID, EJ,
+ID da planilha, Última sincronização, Status), então dá para mudar a ordem ou incluir outras.
 EJ sem ID da planilha ganha uma cópia do modelo na pasta do drive compartilhado (config: modelo_id e
 pasta_planilhas), e o ID da cópia é anotado na aba de acessos. A conta de serviço precisa ser gerente de
 conteúdo do drive compartilhado. O script não mexe em compartilhamento.
@@ -571,17 +572,39 @@ def copiar(drive, origem, pasta, nome):
     return novo["id"], True
 
 
+COLS_ACESSO = {"id": "ID", "ej": "EJ", "planilha": "ID da planilha", "quando": "Última sincronização", "status": "Status"}
+
+
+def letra(j):
+    s = ""
+    j += 1
+    while j:
+        j, r = divmod(j - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def colunas_acesso(snap):
+    """Posição de cada coluna da aba de acessos, pelo nome do cabeçalho."""
+    hdr = [norm(x) for x in (snap["acessos"] or [[]])[0]]
+    faltam = [n for n in COLS_ACESSO.values() if norm(n) not in hdr]
+    if faltam:
+        raise SystemExit("Colunas que faltam na aba de acessos: " + ", ".join(faltam))
+    return {k: hdr.index(norm(n)) for k, n in COLS_ACESSO.items()}
+
+
 def acessos(snap, cfg):
-    """Linhas da aba de acessos: ID | EJ | E-mail | ID da planilha | Link | Última sincronização | Status."""
+    """Linhas da aba de acessos (ID, EJ, ID da planilha, Última sincronização, Status, em qualquer ordem)."""
     rows = snap["acessos"] or []
+    c = colunas_acesso(snap)
     out = []
     for i, r in enumerate(rows[1:], start=2):
-        r = pad(r, 8)
-        eid, sid = txt(r[0]), str(r[3]).strip()
+        r = pad(r, 30)
+        eid, sid = txt(r[c["id"]]), str(r[c["planilha"]]).strip()
         m = re.search(r"/d/([A-Za-z0-9_-]{20,})", sid)
         sid = m[1] if m else sid
         if eid:
-            out.append({"linha": i, "id": eid, "ej": str(r[1]).strip(), "planilha": sid})
+            out.append({"linha": i, "id": eid, "ej": str(r[c["ej"]]).strip(), "planilha": sid})
     return out
 
 
@@ -631,6 +654,7 @@ def main():
 
     # EJ sem planilha ganha uma cópia do modelo na pasta do drive compartilhado
     if service and not args.dry_run:
+        ca = colunas_acesso(snap)
         novas = []
         for a in alvo:
             if a["planilha"] or not a["linha"]:
@@ -638,7 +662,7 @@ def main():
             nome_arq = cfg["nome_planilha"].format(ej=a["ej"] or a["id"])
             try:
                 a["planilha"], criada = copiar(drive, cfg["modelo_id"], cfg["pasta_planilhas"], nome_arq)
-                novas.append({"range": f"'{cfg['aba_acessos']}'!D{a['linha']}", "values": [[a["planilha"]]]})
+                novas.append({"range": f"'{cfg['aba_acessos']}'!{letra(ca['planilha'])}{a['linha']}", "values": [[a["planilha"]]]})
                 print(f"  {a['id']:>4} planilha {'criada' if criada else 'reaproveitada'}: {nome_arq} ({a['planilha']})")
                 time.sleep(1)
             except Exception as e:
@@ -672,7 +696,12 @@ def main():
 
     if service and not args.dry_run and any(l for l, _ in status):
         quando = agora.strftime("%d/%m/%Y %H:%M")
-        data = [{"range": f"'{cfg['aba_acessos']}'!F{l}:G{l}", "values": [[quando, m]]} for l, m in status if l]
+        ca = colunas_acesso(snap)
+        data = []
+        for l, m in status:
+            if l:
+                data += [{"range": f"'{cfg['aba_acessos']}'!{letra(ca['quando'])}{l}", "values": [[quando]]},
+                         {"range": f"'{cfg['aba_acessos']}'!{letra(ca['status'])}{l}", "values": [[m]]}]
         com_retry(service.spreadsheets().values().batchUpdate(
             spreadsheetId=MASTER_ID, body={"valueInputOption": "RAW", "data": data}))
     if args.saida:
