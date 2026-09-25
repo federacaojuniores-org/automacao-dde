@@ -40,6 +40,43 @@ REPORTS_CONFIG = [
     }
 ]
 
+
+def dismiss_popups(page):
+    """Fecha avisos que o Portal abre por cima da página (ex.: pesquisa "Futuro do MEJ").
+    Esses modais bloqueiam os cliques em Atualizar/Baixar."""
+    for _ in range(3):
+        modal = page.locator(".modal.show").first
+        try:
+            if not modal.is_visible():
+                return
+        except Exception:
+            return
+        print("   Popup aberto por cima da página. Fechando...")
+        try:
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(800)
+            if modal.is_visible():
+                modal.locator(".modal-content > button.btn-icon, button.btn-close, button[aria-label*='lose'], button[aria-label*='echar']").first.click(timeout=3000)
+                page.wait_for_timeout(800)
+        except Exception as ex:
+            print(f"   Não consegui fechar o popup pelo botão ({ex}).")
+
+
+def safe_click(page, locator, label):
+    """Clica normalmente; se algo estiver por cima, fecha popups e tenta de novo, e por fim clica via JavaScript."""
+    try:
+        locator.click(timeout=10000)
+        return
+    except PlaywrightTimeoutError:
+        print(f"   Clique em '{label}' bloqueado. Fechando popups e tentando de novo...")
+    dismiss_popups(page)
+    try:
+        locator.click(timeout=5000)
+    except PlaywrightTimeoutError:
+        print(f"   Ainda bloqueado. Clicando em '{label}' via JavaScript...")
+        locator.evaluate("el => el.click()")
+
+
 def run():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -109,6 +146,7 @@ def run():
         page.wait_for_timeout(5000) # Wait 5 seconds for React to render
         page.wait_for_load_state('networkidle')
         print("Reports page loaded.")
+        dismiss_popups(page)
 
         success_count = 0
         for r_cfg in REPORTS_CONFIG:
@@ -139,7 +177,7 @@ def run():
                 atualizar_btn = row_locator.locator("button:has-text('Atualizar'), a:has-text('Atualizar')").first
                 if atualizar_btn.is_visible():
                     print("   Clicking 'Atualizar' button...")
-                    atualizar_btn.click()
+                    safe_click(page, atualizar_btn, "Atualizar")
                     print("   Update triggered! Waiting 5 seconds before checking download button...")
                     time.sleep(5)
                 else:
@@ -161,7 +199,7 @@ def run():
                 # 5. Download file
                 print("5. Button active! Clicking 'Baixar' and downloading...")
                 with page.expect_download(timeout=120000) as download_info:
-                    baixar_btn.click()
+                    safe_click(page, baixar_btn, "Baixar")
                 
                 download = download_info.value
                 dest_path = os.path.join(DOWNLOAD_DIR, dest_file)
