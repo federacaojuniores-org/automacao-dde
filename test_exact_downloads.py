@@ -43,23 +43,39 @@ REPORTS_CONFIG = [
 
 def dismiss_popups(page):
     """Fecha avisos que o Portal abre por cima da página (ex.: pesquisa "Futuro do MEJ").
-    Esses modais bloqueiam os cliques em Atualizar/Baixar."""
-    for _ in range(3):
-        modal = page.locator(".modal.show").first
+    Esses modais bloqueiam os cliques em Atualizar/Baixar. Tenta Esc, depois o X,
+    e por último esconde o popup só nesta sessão do robô."""
+    def aberto():
         try:
-            if not modal.is_visible():
-                return
+            return page.locator(".modal.show").first.is_visible()
         except Exception:
-            return
-        print("   Popup aberto por cima da página. Fechando...")
+            return False
+
+    if not aberto():
+        return
+    print("   Popup aberto por cima da página. Fechando...")
+    tentativas = [
+        lambda: page.keyboard.press("Escape"),
+        lambda: page.locator(".modal.show").first.locator(
+            "button:has(i.fa-xmark-large), button.btn-icon, button.btn-close, "
+            "button[aria-label*='lose'], button[aria-label*='echar']").first.click(timeout=3000),
+        lambda: page.evaluate("""() => {
+            document.querySelectorAll('.modal.show').forEach(m => { m.classList.remove('show'); m.style.display = 'none'; });
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }"""),
+    ]
+    for tentar in tentativas:
         try:
-            page.keyboard.press("Escape")
-            page.wait_for_timeout(800)
-            if modal.is_visible():
-                modal.locator(".modal-content > button.btn-icon, button.btn-close, button[aria-label*='lose'], button[aria-label*='echar']").first.click(timeout=3000)
-                page.wait_for_timeout(800)
+            tentar()
         except Exception as ex:
-            print(f"   Não consegui fechar o popup pelo botão ({ex}).")
+            print(f"   Tentativa de fechar falhou: {str(ex).splitlines()[0]}")
+        page.wait_for_timeout(800)
+        if not aberto():
+            print("   Popup fechado.")
+            return
+    print("   Popup continua aberto; os cliques vão ser feitos via JavaScript.")
 
 
 def safe_click(page, locator, label):
