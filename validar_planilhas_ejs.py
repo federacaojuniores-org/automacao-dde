@@ -96,6 +96,7 @@ def main():
         cred, scopes=["https://www.googleapis.com/auth/spreadsheets.readonly",
                       "https://www.googleapis.com/auth/drive.readonly"])
     sh = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    sa = creds.service_account_email
     dr = build("drive", "v3", credentials=creds, cache_discovery=False)
 
     print("Lendo a planilha mestre...")
@@ -163,7 +164,7 @@ def main():
             meta = S.com_retry(sh.spreadsheets().get(
                 spreadsheetId=sid,
                 fields="namedRanges(name),sheets(properties(title,hidden),charts(chartId),"
-                       "protectedRanges(warningOnly,range,unprotectedRanges))"))
+                       "protectedRanges(warningOnly,range,unprotectedRanges,editors))"))
             titulos = [s["properties"]["title"] for s in meta["sheets"]]
             if titulos != ABAS:
                 prob.append("abas diferentes do modelo: " + ", ".join(titulos))
@@ -180,8 +181,10 @@ def main():
                 prs = s.get("protectedRanges", [])
                 if not prs:
                     prob.append(f"{t}: sem proteção")
-                elif not all(p.get("warningOnly") for p in prs):
-                    prob.append(f"{t}: proteção que bloqueia edição (deveria ser só aviso)")
+                elif any(p.get("warningOnly") for p in prs):
+                    prob.append(f"{t}: proteção só de aviso (deveria bloquear a edição)")
+                elif not all(sa in p.get("editors", {}).get("users", []) for p in prs):
+                    prob.append(f"{t}: a conta de serviço não pode editar a área protegida")
             sim_livre = any(u.get("startRowIndex") == 7 and u.get("endRowIndex") == 11 and u.get("startColumnIndex") == 7
                             for p in por_aba.get("Simulador", {}).get("protectedRanges", [])
                             for u in p.get("unprotectedRanges", []))
