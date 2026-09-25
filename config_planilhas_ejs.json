@@ -1,6 +1,10 @@
 {
   "_leia_me": "Configuração da distribuição das planilhas individuais das EJs. Troque o bloco 'premiacao' quando mudar a premiação vigente.",
   "aba_acessos": "[ACESSO] Planilhas EJs",
+  "pasta_planilhas": "1BXxqfIB3VzsMsjQNVWqvx5coklz_p9rE",
+  "modelo_id": "1wLaqo4bi-BYbcw0HXurOCBX-GWsqUi3gm_4GdSwIXIU",
+  "nome_modelo": "Modelo | Tracking EJ 2026",
+  "nome_planilha": "Tracking 2026 | {ej}",
   "premiacao": {
     "nome": "Prêmio ENCEJ 2026",
     "aba": "Prêmio ENCEJ",

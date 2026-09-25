@@ -9,14 +9,16 @@ apontando para a mestre, em quatro lugares de cada cópia:
   Monitoramento Acumulado!B8  linhas mês a mês da EJ
 
 A lista de EJs vem da aba de acessos da mestre (ID, EJ, e-mail, ID da planilha, ...).
-O script não cria arquivos nem mexe em compartilhamento: a conta de serviço não tem cota no Drive,
-então as cópias são criadas por uma pessoa e compartilhadas com a conta de serviço como editora.
+EJ sem ID da planilha ganha uma cópia do modelo na pasta do drive compartilhado (config: modelo_id e
+pasta_planilhas), e o ID da cópia é anotado na aba de acessos. A conta de serviço precisa ser gerente de
+conteúdo do drive compartilhado. O script não mexe em compartilhamento.
 
 Uso:
   python sync_planilhas_ejs.py                 # todas as EJs com planilha na aba de acessos
   python sync_planilhas_ejs.py --ej 90 --ej 62 # só algumas
   python sync_planilhas_ejs.py --dry-run       # lê a mestre e mostra o que seria gravado
   python sync_planilhas_ejs.py --snapshot x.json --ej 90 --saida y.json  # teste offline
+  python sync_planilhas_ejs.py --copiar-modelo # copia o modelo para a pasta e mostra o ID novo
 """
 import argparse
 import json
@@ -552,6 +554,23 @@ def gravar(service, sid, blocos, limpar):
     com_retry(v.batchClear(spreadsheetId=sid, body={"ranges": limpar}))
 
 
+def buscar_na_pasta(drive, pasta, nome):
+    q = "'%s' in parents and name = '%s' and trashed = false" % (pasta, nome.replace("\\", "\\\\").replace("'", "\\'"))
+    r = com_retry(drive.files().list(q=q, fields="files(id, name)", supportsAllDrives=True,
+                                     includeItemsFromAllDrives=True, corpora="allDrives"))
+    return r.get("files", [])
+
+
+def copiar(drive, origem, pasta, nome):
+    """Copia o arquivo para a pasta; se já existir um com o mesmo nome (rodada anterior interrompida), reaproveita."""
+    achados = buscar_na_pasta(drive, pasta, nome)
+    if achados:
+        return achados[0]["id"], False
+    novo = com_retry(drive.files().copy(fileId=origem, body={"name": nome, "parents": [pasta]},
+                                        fields="id", supportsAllDrives=True))
+    return novo["id"], True
+
+
 def acessos(snap, cfg):
     """Linhas da aba de acessos: ID | EJ | E-mail | ID da planilha | Link | Última sincronização | Status."""
     rows = snap["acessos"] or []
@@ -562,7 +581,7 @@ def acessos(snap, cfg):
         m = re.search(r"/d/([A-Za-z0-9_-]{20,})", sid)
         sid = m[1] if m else sid
         if eid:
-            out.append({"linha": i, "id": eid, "planilha": sid})
+            out.append({"linha": i, "id": eid, "ej": str(r[1]).strip(), "planilha": sid})
     return out
 
 
@@ -572,6 +591,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="não grava nada")
     ap.add_argument("--snapshot", help="usa um JSON com os dados da mestre em vez da API")
     ap.add_argument("--saida", help="com --snapshot ou --dry-run, salva os blocos montados neste JSON")
+    ap.add_argument("--copiar-modelo", action="store_true", help="copia o modelo para a pasta das planilhas e sai")
     args = ap.parse_args()
 
     cfg = json.load(open(CONFIG_PATH, encoding="utf-8"))
@@ -587,9 +607,15 @@ def main():
         cred = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "dde-projeto-9ed22179e048.json")
         cred = cred if os.path.isabs(cred) else os.path.join(PROJECT_DIR, cred)
         creds = service_account.Credentials.from_service_account_file(
-            cred, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+            cred, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         service = build("sheets", "v4", credentials=creds, cache_discovery=False)
+        drive = build("drive", "v3", credentials=creds, cache_discovery=False)
         print(f"Conta de serviço: {creds.service_account_email}")
+        if args.copiar_modelo:
+            mid, novo = copiar(drive, cfg["modelo_id"], cfg["pasta_planilhas"], cfg["nome_modelo"])
+            print(("Modelo copiado" if novo else "Já existe um modelo na pasta") + f": ID {mid}")
+            print(f"  https://docs.google.com/spreadsheets/d/{mid}/edit")
+            return
         snap = {"acessos": ler_acessos(service, cfg)}
         if snap["acessos"] is None:
             print(f"A aba '{cfg['aba_acessos']}' não existe na mestre. Nada a atualizar.")
@@ -602,6 +628,24 @@ def main():
     if args.ej:
         alvo = [a for a in alvo if a["id"] in set(args.ej)]
     print(f"{len(alvo)} EJ(s) para atualizar")
+
+    # EJ sem planilha ganha uma cópia do modelo na pasta do drive compartilhado
+    if service and not args.dry_run:
+        novas = []
+        for a in alvo:
+            if a["planilha"] or not a["linha"]:
+                continue
+            nome_arq = cfg["nome_planilha"].format(ej=a["ej"] or a["id"])
+            try:
+                a["planilha"], criada = copiar(drive, cfg["modelo_id"], cfg["pasta_planilhas"], nome_arq)
+                novas.append({"range": f"'{cfg['aba_acessos']}'!D{a['linha']}", "values": [[a["planilha"]]]})
+                print(f"  {a['id']:>4} planilha {'criada' if criada else 'reaproveitada'}: {nome_arq} ({a['planilha']})")
+                time.sleep(1)
+            except Exception as e:
+                print(f"  {a['id']:>4}: não foi possível criar a planilha: {type(e).__name__}: {str(e)[:300]}")
+        if novas:
+            com_retry(service.spreadsheets().values().batchUpdate(
+                spreadsheetId=MASTER_ID, body={"valueInputOption": "RAW", "data": novas}))
 
     status, saida, erros = [], {}, 0
     for a in alvo:
