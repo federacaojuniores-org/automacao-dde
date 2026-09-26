@@ -1,10 +1,10 @@
 name: Daily Tracking Synchronization
 
+# Disparado às 05:30 e 17:30 de Brasília pelo cron-job.org (cronjob "Disparo tracking DDE"),
+# que chama a API de workflow_dispatch com o token "cron-job disparo tracking".
+# Não usa o agendamento do GitHub porque ele atrasava horas. Também pode ser rodado à mão.
 on:
-  schedule:
-    # 05:30 e 17:30 de Brasília (UTC-3) = 08:30 e 20:30 UTC
-    - cron: '30 8,20 * * *'
-  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+  workflow_dispatch:
 
 # não roda ao mesmo tempo que a atualização das planilhas das EJs
 concurrency:

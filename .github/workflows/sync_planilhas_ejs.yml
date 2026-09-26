@@ -1,14 +1,11 @@
 name: Planilhas das EJs
 
 # Copia os dados da mestre para as planilhas das EJs (sem baixar os relatórios do Portal).
-# Roda sozinho às 07:05 e 19:05 de Brasília, depois do Daily Tracking Synchronization (05:30 e 17:30).
+# Roda sozinho logo depois de cada Daily Tracking Synchronization que der certo
+# (o Daily é disparado às 05:30 e 17:30 de Brasília pelo cron-job.org).
 # Também pode ser rodado à mão na aba Actions, com a opção de informar os IDs das EJs.
 # EJ da aba de acessos sem ID da planilha ganha uma cópia do modelo na pasta do drive compartilhado.
 on:
-  schedule:
-    # 07:05 e 19:05 de Brasília (UTC-3) = 10:05 e 22:05 UTC; fora do minuto 00, que é o mais congestionado
-    - cron: '5 10,22 * * *'
-  # e também logo depois de cada atualização da mestre que der certo, porque o GitHub às vezes atrasa os horários agendados
   workflow_run:
     workflows: ["Daily Tracking Synchronization"]
     types: [completed]
@@ -33,9 +30,6 @@ jobs:
   sync-ejs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    # precisa escrever no repo só para o passo que mantém os agendamentos ativos
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -63,18 +57,3 @@ jobs:
           if [ "$COPIAR_MODELO" = "true" ]; then ARGS="--copiar-modelo"; fi
           for id in $EJS; do ARGS="$ARGS --ej $id"; done
           python sync_planilhas_ejs.py $ARGS
-
-      # O GitHub desliga os agendamentos de repositório público depois de 60 dias sem commit.
-      # Se o último commit tiver 30 dias ou mais, este passo faz um commit vazio e o prazo recomeça.
-      - name: Manter os agendamentos ativos
-        if: always()
-        run: |
-          ultimo=$(git log -1 --format=%ct)
-          dias=$(( ($(date +%s) - ultimo) / 86400 ))
-          echo "Último commit há $dias dia(s)"
-          if [ "$dias" -ge 30 ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit --allow-empty -m "chore: manter os agendamentos do GitHub ativos"
-            git push
-          fi
