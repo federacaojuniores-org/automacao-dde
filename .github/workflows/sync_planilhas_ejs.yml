@@ -57,3 +57,14 @@ jobs:
           if [ "$COPIAR_MODELO" = "true" ]; then ARGS="--copiar-modelo"; fi
           for id in $EJS; do ARGS="$ARGS --ej $id"; done
           python sync_planilhas_ejs.py $ARGS
+
+      - name: Validate EJ spreadsheets
+        if: ${{ github.event.inputs.copiar_modelo != 'true' }}
+        env:
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
+          EJS: ${{ github.event.inputs.ejs }}
+        run: |
+          ARGS=""
+          for id in $EJS; do ARGS="$ARGS --ej $id"; done
+          python validar_planilhas_ejs.py $ARGS

@@ -10,8 +10,8 @@ Para cada EJ da aba de acessos verifica:
                (sem linhas antigas sobrando embaixo)
   mestre       contagem de contratos e de meses e soma do faturamento contadas direto nas abas da mestre;
                critérios da Premiação comparados direto com a linha da EJ na aba do prêmio
-  simulador    entradas vazias, índice igual ao previsto do Farol, cluster, "para subir" e "para não cair"
-               recalculados aqui pela regra do índice
+  simulador    sem cenário preenchido, índice igual ao previsto do Farol, cluster, "para subir" e
+               "para não cair" recalculados aqui pela regra do índice
   atualização  data de "Atualizado em" das últimas 24 horas
 
 O repositório é público, então o log mostra só o endereço das divergências, nunca os valores.
@@ -100,13 +100,18 @@ def main():
     dr = build("drive", "v3", credentials=creds, cache_discovery=False)
 
     print("Lendo a planilha mestre...")
-    snap = {"acessos": S.ler_acessos(sh, cfg)}
-    snap.update(S.ler_mestre(sh, cfg))
+    tabelas = S.mapear_tabelas(sh)
+    snap = {
+        "acessos": S.ler_acessos(sh, cfg, tabelas),
+        "acessos_inicio": tabelas[S.TABELAS_MESTRE["acessos"]][1].get("startRowIndex", 0),
+    }
+    snap.update(S.ler_mestre(sh, cfg, tabelas))
     ix = S.indexar(snap)
     agora = datetime.now(S.BRT)
     alvo = S.acessos(snap, cfg)
     if args.ej:
         alvo = [a for a in alvo if a["id"] in set(args.ej)]
+    S.validar_fonte(ix, snap, cfg, alvo)
 
     # referência do modelo: gráficos e proteções por aba
     mod = S.com_retry(sh.spreadsheets().get(spreadsheetId=cfg["modelo_id"],
@@ -298,8 +303,7 @@ def main():
 
             # Simulador
             Sim = U["Simulador"]
-            if any(Sim.get((r, 7), "") not in ("", None) for r in range(8, 12)):
-                prob.append("Simulador: há valores digitados em H8:H11")
+            cenario_preenchido = any(Sim.get((r, 7), "") not in ("", None) for r in range(8, 12))
             g = lambda k: dados.get(k, "")
             fat, col_, csat = S.to_num(g("Farol | FATURAMENTO ALCANÇADO")), S.to_num(g("Farol | FAT. COLAB")), S.to_num(g("Farol | CSAT ALCANÇADO"))
             ecm, prev, atual = S.to_num(g("Farol | ECM ALCANÇADO")), S.to_num(g("Farol | ÍNDICE PREVISTO")), S.to_num(g("Farol | CLUSTER"))
@@ -307,28 +311,29 @@ def main():
             recalc = (fat + col_) * 12 / mes * csat * (1 + ecm) * 100
             if not math.isclose(max(recalc, 1), prev, rel_tol=1e-6, abs_tol=0.01):
                 prob.append("Simulador: a fórmula do índice não reproduz o índice previsto do Farol")
-            if not igual(Sim.get((28, 7)), prev):
-                prob.append("Simulador: H28 diferente do índice previsto do Farol")
-            piso = {c: regua[(c, "Piso")] for c in range(1, 6)}
-            fp = fat * 12 / mes
-            land = 1 if fp <= 0 else max(c for c in piso if piso[c] <= prev)
-            fin = atual + 1 if land > atual else land
-            if str(Sim.get((16, 4), "")) != f"Cluster {fin}":
-                prob.append("Simulador: E16 (cluster no fim do ano) difere do cálculo")
-            k = csat * (1 + ecm) * 100
-            base = (fat + col_) * 12 / mes
-            up2 = lambda x: math.ceil(round(x * 100, 6)) / 100
-            sub = "Cluster máximo" if atual >= 5 else ("Já sobe" if fin > atual else up2(piso[atual + 1] / k - base))
-            nc = "Sem risco" if fin >= atual else up2(piso[atual] / k - base)
-            perto = lambda x, y: (math.isclose(x, y, abs_tol=0.011) if isinstance(x, (int, float)) and isinstance(y, (int, float))
-                                  else igual(x, y))
-            if not perto(Sim.get((16, 7)), sub):
-                prob.append("Simulador: H16 (para subir) difere do cálculo")
-            if not perto(Sim.get((16, 10)), nc):
-                prob.append("Simulador: K16 (para não cair) difere do cálculo")
-            st = "CAI" if fin < atual else ("SOBE" if fin > atual else "PERMANECE")
-            if str(Sim.get((18, 4), "")) != st:
-                prob.append("Simulador: E18 (situação) difere do cálculo")
+            if not cenario_preenchido:
+                if not igual(Sim.get((28, 7)), prev):
+                    prob.append("Simulador: H28 diferente do índice previsto do Farol")
+                piso = {c: regua[(c, "Piso")] for c in range(1, 6)}
+                fp = fat * 12 / mes
+                land = 1 if fp <= 0 else max(c for c in piso if piso[c] <= prev)
+                fin = atual + 1 if land > atual else land
+                if str(Sim.get((16, 4), "")) != f"Cluster {fin}":
+                    prob.append("Simulador: E16 (cluster no fim do ano) difere do cálculo")
+                k = csat * (1 + ecm) * 100
+                base = (fat + col_) * 12 / mes
+                up2 = lambda x: math.ceil(round(x * 100, 6)) / 100
+                sub = "Cluster máximo" if atual >= 5 else ("Já sobe" if fin > atual else up2(piso[atual + 1] / k - base))
+                nc = "Sem risco" if fin >= atual else up2(piso[atual] / k - base)
+                perto = lambda x, y: (math.isclose(x, y, abs_tol=0.011) if isinstance(x, (int, float)) and isinstance(y, (int, float))
+                                      else igual(x, y))
+                if not perto(Sim.get((16, 7)), sub):
+                    prob.append("Simulador: H16 (para subir) difere do cálculo")
+                if not perto(Sim.get((16, 10)), nc):
+                    prob.append("Simulador: K16 (para não cair) difere do cálculo")
+                st = "CAI" if fin < atual else ("SOBE" if fin > atual else "PERMANECE")
+                if str(Sim.get((18, 4), "")) != st:
+                    prob.append("Simulador: E18 (situação) difere do cálculo")
 
             # atualização
             ua = dados.get("Controle | Última atualização")

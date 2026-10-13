@@ -1,18 +1,11 @@
 import os
-import openpyxl
 from datetime import datetime, timedelta
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from dotenv import load_dotenv
 import socket
 import time
 
 # Set a generous global socket timeout to prevent httplib2 from dropping stale connections 
 # after the long Playwright download phase
 socket.setdefaulttimeout(120)
-
-# Load local environment variables from .env file
-load_dotenv()
 
 # Dynamically resolve project directory
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,15 +23,18 @@ DOWNLOAD_DIR = os.path.join(PROJECT_DIR, "downloads")
 REPORTS_TO_UPDATE = [
     {
         "filename": "monitoramento_geral_v2.xlsx",
-        "sheet_name": "[MONITORAMENTO] Geral v2.0"
+        "sheet_name": "[MONITORAMENTO] Geral v2.0",
+        "required_headers": ["ID", "EMPRESA_JUNIOR", "FATURAMENTO", "DATA_DE_ASSINATURA"]
     },
     {
         "filename": "monitoramento_acumulado_v2.xlsx",
-        "sheet_name": "[MONITORAMENTO] Acumulado v2.0"
+        "sheet_name": "[MONITORAMENTO] Acumulado v2.0",
+        "required_headers": ["ID", "EMPRESA_JUNIOR", "MES", "FATURAMENTO"]
     },
     {
         "filename": "empresas_juniores_geral_v2.xlsx",
-        "sheet_name": "[EMPRESAS JUNIORES] Geral v2.0"
+        "sheet_name": "[EMPRESAS JUNIORES] Geral v2.0",
+        "required_headers": ["ID", "EMPRESA_JUNIOR", "FEDERACAO", "CLUSTER_2026"]
     }
 ]
 
@@ -49,7 +45,31 @@ def format_value(val):
         return val.strftime("%Y-%m-%d %H:%M:%S")
     return val
 
-def update_sheet_auto_aligned(service, filename, sheet_name):
+def validar_cabecalhos(raw_headers, obrigatorios, origem):
+    headers = list(raw_headers)
+    while headers and headers[-1] is None:
+        headers.pop()
+    if not headers:
+        raise ValueError(f"{origem}: arquivo vazio ou sem cabeçalho")
+    vazios = [i + 1 for i, value in enumerate(headers) if value is None or not str(value).strip()]
+    nomes = [str(value).strip() for value in headers]
+    normalizados = [value.upper() for value in nomes]
+    duplicados = sorted({value for value in normalizados if normalizados.count(value) > 1})
+    faltando = [value for value in obrigatorios if value.upper() not in normalizados]
+    problemas = []
+    if vazios:
+        problemas.append("cabeçalho vazio nas colunas " + ", ".join(map(str, vazios)))
+    if duplicados:
+        problemas.append("cabeçalhos duplicados: " + ", ".join(duplicados))
+    if faltando:
+        problemas.append("colunas obrigatórias ausentes: " + ", ".join(faltando))
+    if problemas:
+        raise ValueError(f"{origem}: " + "; ".join(problemas))
+    return nomes, normalizados
+
+
+def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
+    import openpyxl
     excel_path = os.path.join(DOWNLOAD_DIR, filename)
     print(f"\n--- Reading Excel file: {filename} ---")
     
@@ -60,11 +80,10 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
     # Get Excel headers (first row)
     excel_rows = sheet_excel.iter_rows(values_only=True)
     try:
-        excel_headers = [str(h).strip().upper() for h in next(excel_rows) if h is not None]
+        raw_excel_headers, excel_headers = validar_cabecalhos(next(excel_rows), required_headers, filename)
     except StopIteration:
-        print("  [Error] Excel file is empty!")
         wb_excel.close()
-        return
+        raise ValueError(f"{filename}: arquivo vazio ou sem cabeçalho")
         
     print(f"  Excel active sheet: '{sheet_excel.title}'")
     print(f"  Found {len(excel_headers)} headers in Excel.")
@@ -83,19 +102,14 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
         range=f"'{sheet_name}'!A1:ZZ1"
     ).execute()
     
-    gs_headers_raw = sheet_metadata.get("values", [])[0]
-    gs_headers = [str(h).strip() for h in gs_headers_raw]
+    gs_rows = sheet_metadata.get("values", [])
+    if not gs_rows:
+        raise ValueError(f"{sheet_name}: cabeçalho ausente na planilha mestre")
+    gs_headers, _ = validar_cabecalhos(gs_rows[0], (), sheet_name)
     print(f"  Found {len(gs_headers)} original headers in Google Sheet.")
 
     # Find new Excel headers that are not in the Google Sheet (case-insensitive check)
     gs_headers_upper = {h.strip().upper() for h in gs_headers}
-    # Read raw Excel headers to preserve their original casing
-    wb_excel_raw = openpyxl.load_workbook(excel_path, read_only=True)
-    sheet_excel_raw = wb_excel_raw.active
-    raw_headers_rows = sheet_excel_raw.iter_rows(values_only=True)
-    raw_excel_headers = [str(h).strip() for h in next(raw_headers_rows) if h is not None]
-    wb_excel_raw.close()
-
     new_headers = []
     for raw_h in raw_excel_headers:
         if raw_h.strip().upper() not in gs_headers_upper:
@@ -156,14 +170,7 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
             }
         ).execute()
 
-    # 5. Clear old data from Google Sheets (preserving headers and Table structure)
-    print(f"  Clearing old values in Google Sheet tab: '{sheet_name}' (preserving headers)...")
-    service.spreadsheets().values().clear(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"'{sheet_name}'!A1:ZZ100000"
-    ).execute()
-    
-    # 6. Write the aligned values starting at A1 in chunks (robust against socket timeouts!)
+    # 5. Write first; only clear obsolete trailing rows after every chunk succeeds.
     chunk_size = 500
     print(f"  Writing aligned values in chunks of {chunk_size} rows in tab: '{sheet_name}'...")
     
@@ -189,10 +196,24 @@ def update_sheet_auto_aligned(service, filename, sheet_name):
                 if attempt == max_retries - 1:
                     raise e
                 time.sleep(5) # Wait before retrying
+
+    if required_rows < current_rows:
+        service.spreadsheets().values().clear(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"'{sheet_name}'!A{required_rows + 1}:ZZ{current_rows}"
+        ).execute()
     
     print(f"  SUCCESS: Updated {len(aligned_values)} rows in Google Sheets!")
 
 def main():
+    global CREDENTIALS_PATH, SPREADSHEET_ID
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from dotenv import load_dotenv
+    load_dotenv()
+    credentials_filename = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "dde-projeto-9ed22179e048.json")
+    CREDENTIALS_PATH = credentials_filename if os.path.isabs(credentials_filename) else os.path.join(PROJECT_DIR, credentials_filename)
+    SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "163X5ADTJkHXK4INVs4KPdAXveUXhz0sYEoDGIdHWdOM")
     print("Authenticating with Google Sheets API...")
     creds = service_account.Credentials.from_service_account_file(
         CREDENTIALS_PATH,
@@ -202,7 +223,7 @@ def main():
     print("Authentication complete.")
     
     for report in REPORTS_TO_UPDATE:
-        update_sheet_auto_aligned(service, report["filename"], report["sheet_name"])
+        update_sheet_auto_aligned(service, report["filename"], report["sheet_name"], report["required_headers"])
         
     # Final Step: Automatically update the Dashboard reference date in C3 to Brasília today's date!
     now_brasilia = datetime.utcnow() - timedelta(hours=3)
