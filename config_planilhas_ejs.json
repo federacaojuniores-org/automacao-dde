@@ -22,7 +22,8 @@
       {
         "campo": "Rank P1 (IMS)",
         "descricao": "Posição da EJ na etapa P1.",
-        "formato": "posicao"
+        "formato": "posicao",
+        "ocultar_valor": true
       },
       {
         "grupo": "P2 | Ponto de Virada | Evolução de cluster"
@@ -70,7 +71,8 @@
       {
         "campo": "Rank P2",
         "descricao": "Posição da EJ",
-        "formato": "posicao"
+        "formato": "posicao",
+        "ocultar_valor": true
       },
       {
         "grupo": "P3 | Elo do Amanhã | Corrida"
@@ -94,7 +96,8 @@
       {
         "campo": "Rank P3",
         "descricao": "Posição da EJ na etapa P3.",
-        "formato": "posicao"
+        "formato": "posicao",
+        "ocultar_valor": true
       },
       {
         "grupo": "P4 | Aurora do Crepúsculo | Rede e impacto"
@@ -138,7 +141,8 @@
       {
         "campo": "Rank P4",
         "descricao": "Posição da EJ na etapa P4.",
-        "formato": "posicao"
+        "formato": "posicao",
+        "ocultar_valor": true
       }
     ]
   }

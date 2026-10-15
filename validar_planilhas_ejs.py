@@ -287,11 +287,12 @@ def main():
                 prob.append("Premiação: EJ não encontrada na aba do prêmio da mestre")
             else:
                 n_crit = 0
+                ocultos = {c["campo"] for c in cfg["premiacao"]["criterios"] if c.get("ocultar_valor")}
                 for r in range(13, S.PREM_FIM + 1):
                     campo = str(FV["Premiação"].get((r, 1), "")).strip()
                     if campo in phdr:
                         n_crit += 1
-                        esperado = str(linha_p[phdr.index(campo)]).strip()
+                        esperado = "" if campo in ocultos else str(linha_p[phdr.index(campo)]).strip()
                         lido_v = str(FV["Premiação"].get((r, 6), "")).strip()
                         e2 = re.sub(r",\d+$", "", esperado.replace("º", ""))
                         l2 = re.sub(r",\d+$", "", lido_v.replace("º", ""))

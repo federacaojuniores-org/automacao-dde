@@ -43,6 +43,10 @@ class SyncResilienceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "obrigatórias ausentes"):
             update_sheets.validar_cabecalhos(["ID", "EMPRESA_JUNIOR"], ("FATURAMENTO",), "relatório")
 
+    def test_hidden_prize_value_keeps_label_but_not_rank(self):
+        criterion = {"campo": "Rank P1 (IMS)", "formato": "posicao", "ocultar_valor": True}
+        self.assertEqual(sync.valor_criterio(criterion, ["Rank P1 (IMS)"], [10]), "")
+
 
 if __name__ == "__main__":
     unittest.main()

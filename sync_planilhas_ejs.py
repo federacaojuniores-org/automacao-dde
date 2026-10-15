@@ -488,6 +488,14 @@ def valor_premio(v, formato):
     return s
 
 
+def valor_criterio(c, hdr, linha):
+    if c.get("ocultar_valor"):
+        return ""
+    if c["campo"] not in hdr:
+        raise ValueError(f"coluna '{c['campo']}' não existe na aba da premiação")
+    return valor_premio(linha[hdr.index(c["campo"])], c.get("formato"))
+
+
 def montar_ej(ix, snap, cfg, eid, agora):
     """Retorna (lista de {range, values}, avisos) para a EJ."""
     avisos = []
@@ -526,12 +534,7 @@ def montar_ej(ix, snap, cfg, eid, agora):
         if "grupo" in c:
             prem.append([c["grupo"], "", "", "", "", "", ""])
             continue
-        v = ""
-        if linha_p is not None:
-            if c["campo"] in hdr_p:
-                v = valor_premio(linha_p[hdr_p.index(c["campo"])], c.get("formato"))
-            else:
-                raise ValueError(f"coluna '{c['campo']}' não existe na aba da premiação")
+        v = valor_criterio(c, hdr_p, linha_p)
         prem.append([c["campo"], "", "", "", "", v, c.get("descricao", "")])
 
     # Monitoramento Geral
