@@ -44,6 +44,16 @@ def igual(a, b):
     return str(a).strip() == str(b).strip()
 
 
+def aplicar_regra_pi(cluster_atual, cluster_calculado, possui_pi):
+    if possui_pi:
+        return cluster_calculado
+    if cluster_atual in (4, 5):
+        return cluster_atual - 1
+    if cluster_atual == 3 and cluster_calculado > 3:
+        return 3
+    return cluster_calculado
+
+
 def col(j):
     return S.letra(j)
 
@@ -304,7 +314,8 @@ def main():
 
             # Simulador
             Sim = U["Simulador"]
-            cenario_preenchido = any(Sim.get((r, 7), "") not in ("", None) for r in range(8, 12))
+            pi_simulado = Sim.get((12, 7), False) is True
+            cenario_preenchido = pi_simulado or any(Sim.get((r, 7), "") not in ("", None) for r in range(8, 12))
             g = lambda k: dados.get(k, "")
             fat, col_, csat = S.to_num(g("Farol | FATURAMENTO ALCANÇADO")), S.to_num(g("Farol | FAT. COLAB")), S.to_num(g("Farol | CSAT ALCANÇADO"))
             ecm, prev, atual = S.to_num(g("Farol | ECM ALCANÇADO")), S.to_num(g("Farol | ÍNDICE PREVISTO")), S.to_num(g("Farol | CLUSTER"))
@@ -318,7 +329,8 @@ def main():
                 piso = {c: regua[(c, "Piso")] for c in range(1, 6)}
                 fp = fat * 12 / mes
                 land = 1 if fp <= 0 else max(c for c in piso if piso[c] <= prev)
-                fin = atual + 1 if land > atual else land
+                fin = aplicar_regra_pi(atual, atual + 1 if land > atual else land,
+                                       S.norm(g("Farol | POSSUI PI?")) == "sim")
                 if str(Sim.get((16, 4), "")) != f"Cluster {fin}":
                     prob.append("Simulador: E16 (cluster no fim do ano) difere do cálculo")
                 k = csat * (1 + ecm) * 100

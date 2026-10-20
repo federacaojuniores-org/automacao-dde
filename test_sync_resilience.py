@@ -2,6 +2,7 @@ import unittest
 
 import sync_planilhas_ejs as sync
 import update_sheets
+import validar_planilhas_ejs as validator
 
 
 class SyncResilienceTest(unittest.TestCase):
@@ -46,6 +47,12 @@ class SyncResilienceTest(unittest.TestCase):
     def test_hidden_prize_value_keeps_label_but_not_rank(self):
         criterion = {"campo": "Rank P1 (IMS)", "formato": "posicao", "ocultar_valor": True}
         self.assertEqual(sync.valor_criterio(criterion, ["Rank P1 (IMS)"], [10]), "")
+
+    def test_pi_rule_caps_cluster_3_and_drops_clusters_4_and_5(self):
+        self.assertEqual(validator.aplicar_regra_pi(3, 4, False), 3)
+        self.assertEqual(validator.aplicar_regra_pi(4, 5, False), 3)
+        self.assertEqual(validator.aplicar_regra_pi(5, 5, False), 4)
+        self.assertEqual(validator.aplicar_regra_pi(5, 5, True), 5)
 
 
 if __name__ == "__main__":
