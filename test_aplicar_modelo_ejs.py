@@ -27,6 +27,11 @@ class ApplyModelTest(unittest.TestCase):
         forbidden = {"addSheet", "deleteSheet", "duplicateSheet"}
         self.assertFalse(any(forbidden.intersection(request) for request in requests))
 
+    def test_equal_dimension_sizes_are_compacted(self):
+        requests = model.requests_dimensao(1, "ROWS", [{"pixelSize": 20}, {"pixelSize": 20}, {"pixelSize": 30}])
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0]["updateDimensionProperties"]["range"]["endIndex"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

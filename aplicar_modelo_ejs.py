@@ -66,14 +66,18 @@ def remapear_sheet_ids(obj, ids):
 
 def requests_dimensao(sheet_id, tipo, metadata):
     requests = []
-    for i, item in enumerate(metadata):
+    inicio, anterior = 0, None
+    for i, item in enumerate([*metadata, {}]):
         props = {k: item[k] for k in ("pixelSize", "hiddenByUser") if k in item}
-        if props:
-            requests.append({"updateDimensionProperties": {
-                "range": {"sheetId": sheet_id, "dimension": tipo, "startIndex": i, "endIndex": i + 1},
-                "properties": props,
-                "fields": ",".join(props),
-            }})
+        if props != anterior:
+            if anterior:
+                requests.append({"updateDimensionProperties": {
+                    "range": {"sheetId": sheet_id, "dimension": tipo,
+                              "startIndex": inicio, "endIndex": i},
+                    "properties": anterior,
+                    "fields": ",".join(anterior),
+                }})
+            inicio, anterior = i, props
     return requests
 
 
