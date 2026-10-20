@@ -382,7 +382,8 @@ def indexar(snap):
     """Organiza a mestre em dicionários por ID de EJ."""
     _, P = campos_por_id(snap["painel"], "Painel", ("EJ", "Cluster", "Farol de Cluster"))
     _, F = campos_por_id(snap["farol"], "Farol", ("EJ", "CLUSTER", "CLUSTER ALMEJADO", "FAROL",
-                                                                  "SITUAÇÃO ATUAL", "ÍNDICE PREVISTO", "ÍNDICE ATUAL"))
+                                                                  "SITUAÇÃO ATUAL", "ÍNDICE PREVISTO", "ÍNDICE ATUAL",
+                                                                  "CLUSTER PREVISTO FINAL"))
     _, C26 = campos_por_id(snap["cors"], "CORS 2026", ("EJ", "CORS FINAL"))
     _, C25 = campos_por_id(snap["cors_2025"], "CORS 2025", ("EJ", "CORS FINAL"))
     C = {}

@@ -1,0 +1,51 @@
+name: Aplicar modelo às EJs
+
+on:
+  workflow_dispatch:
+    inputs:
+      ejs:
+        description: "IDs das EJs separados por espaço (vazio = todas)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Somente mostrar alterações, sem gravar"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: tracking
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Create Google Credentials File
+        run: echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > dde-projeto-9ed22179e048.json
+      - name: Apply model
+        env:
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
+          EJS: ${{ github.event.inputs.ejs }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ "$DRY_RUN" = "true" ]; then ARGS="--dry-run"; fi
+          for id in $EJS; do ARGS="$ARGS --ej $id"; done
+          python aplicar_modelo_ejs.py $ARGS
+      - name: Validate EJ spreadsheets
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
+          EJS: ${{ github.event.inputs.ejs }}
+        run: |
+          ARGS=""
+          for id in $EJS; do ARGS="$ARGS --ej $id"; done
+          python validar_planilhas_ejs.py $ARGS
