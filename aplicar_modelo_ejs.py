@@ -98,6 +98,13 @@ def fonte(service, modelo_id):
     meta = S.com_retry(service.spreadsheets().get(
         spreadsheetId=modelo_id, ranges=ranges, includeGridData=True, fields=fields))
     sheets = {x["properties"]["title"]: x for x in meta["sheets"]}
+    objetos = S.com_retry(service.spreadsheets().get(
+        spreadsheetId=modelo_id, includeGridData=False,
+        fields="sheets(properties(sheetId,title),merges,conditionalFormats,charts(chartId,spec,position))"))
+    for sheet in objetos["sheets"]:
+        if sheet["properties"]["title"] in sheets:
+            for key in ("merges", "conditionalFormats", "charts"):
+                sheets[sheet["properties"]["title"]][key] = sheet.get(key, [])
     return valores, sheets
 
 
