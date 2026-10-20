@@ -49,6 +49,7 @@ class SyncResilienceTest(unittest.TestCase):
         self.assertEqual(sync.valor_criterio(criterion, ["Rank P1 (IMS)"], [10]), "")
 
     def test_pi_rule_caps_cluster_3_and_drops_clusters_4_and_5(self):
+        self.assertEqual(validator.MENSAGEM_PI, "Falta P.I.")
         self.assertEqual(validator.aplicar_regra_pi(3, 4, False), 3)
         self.assertEqual(validator.aplicar_regra_pi(4, 5, False), 3)
         self.assertEqual(validator.aplicar_regra_pi(5, 5, False), 4)

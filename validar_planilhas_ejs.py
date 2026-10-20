@@ -32,6 +32,7 @@ import sync_planilhas_ejs as S
 ERROS = re.compile(r"^#(N/A|REF!|VALUE!|DIV/0!|ERROR!|NAME\?|NUM!|NULL!)")
 ABAS = ["Visão Geral", "Premiação", "Simulador", "Monitoramento Geral", "Monitoramento Acumulado", "_dados"]
 TOL = 1e-6
+MENSAGEM_PI = "Falta P.I."
 
 
 def igual(a, b):
@@ -347,7 +348,7 @@ def main():
                 k = csat * (1 + ecm) * 100
                 base = (fat + col_) * 12 / mes
                 up2 = lambda x: math.ceil(round(x * 100, 6)) / 100
-                sub = ("Falta Projeto de Impacto Aprovado"
+                sub = (MENSAGEM_PI
                        if falta_pi_para_subir(atual, fin_sem_pi, possui_pi)
                        else "Cluster máximo" if atual >= 5
                        else "Já sobe" if fin > atual
