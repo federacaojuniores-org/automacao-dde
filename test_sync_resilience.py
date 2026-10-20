@@ -53,6 +53,9 @@ class SyncResilienceTest(unittest.TestCase):
         self.assertEqual(validator.aplicar_regra_pi(4, 5, False), 3)
         self.assertEqual(validator.aplicar_regra_pi(5, 5, False), 4)
         self.assertEqual(validator.aplicar_regra_pi(5, 5, True), 5)
+        self.assertTrue(validator.falta_pi_para_subir(3, 4, False))
+        self.assertTrue(validator.falta_pi_para_subir(5, 5, False))
+        self.assertFalse(validator.falta_pi_para_subir(3, 3, False))
 
 
 if __name__ == "__main__":

@@ -54,6 +54,11 @@ def aplicar_regra_pi(cluster_atual, cluster_calculado, possui_pi):
     return cluster_calculado
 
 
+def falta_pi_para_subir(cluster_atual, cluster_calculado, possui_pi):
+    return not possui_pi and (cluster_atual in (4, 5) or
+                              cluster_atual == 3 and cluster_calculado > 3)
+
+
 def col(j):
     return S.letra(j)
 
@@ -312,6 +317,11 @@ def main():
                 if n_crit != n_cfg:
                     prob.append(f"Premiação: {n_crit} critério(s) na aba, o config tem {n_cfg}")
 
+            if not igual(U["Visão Geral"].get((36, 5)), S.to_num(dados.get("Painel | PI"))):
+                prob.append("Visão Geral: F36 (projetos de impacto) difere da mestre")
+            if not igual(U["Visão Geral"].get((36, 11)), S.to_num(dados.get("Painel | PDI"))):
+                prob.append("Visão Geral: L36 (políticas de D&I) difere da mestre")
+
             # Simulador
             Sim = U["Simulador"]
             pi_simulado = Sim.get((12, 7), False) is True
@@ -329,14 +339,19 @@ def main():
                 piso = {c: regua[(c, "Piso")] for c in range(1, 6)}
                 fp = fat * 12 / mes
                 land = 1 if fp <= 0 else max(c for c in piso if piso[c] <= prev)
-                fin = aplicar_regra_pi(atual, atual + 1 if land > atual else land,
-                                       S.norm(g("Farol | POSSUI PI?")) == "sim")
+                fin_sem_pi = atual + 1 if land > atual else land
+                possui_pi = S.norm(g("Farol | POSSUI PI?")) == "sim"
+                fin = aplicar_regra_pi(atual, fin_sem_pi, possui_pi)
                 if str(Sim.get((16, 4), "")) != f"Cluster {fin}":
                     prob.append("Simulador: E16 (cluster no fim do ano) difere do cálculo")
                 k = csat * (1 + ecm) * 100
                 base = (fat + col_) * 12 / mes
                 up2 = lambda x: math.ceil(round(x * 100, 6)) / 100
-                sub = "Cluster máximo" if atual >= 5 else ("Já sobe" if fin > atual else up2(piso[atual + 1] / k - base))
+                sub = ("Falta Projeto de Impacto Aprovado"
+                       if falta_pi_para_subir(atual, fin_sem_pi, possui_pi)
+                       else "Cluster máximo" if atual >= 5
+                       else "Já sobe" if fin > atual
+                       else up2(piso[atual + 1] / k - base))
                 nc = "Sem risco" if fin >= atual else up2(piso[atual] / k - base)
                 perto = lambda x, y: (math.isclose(x, y, abs_tol=0.011) if isinstance(x, (int, float)) and isinstance(y, (int, float))
                                       else igual(x, y))
