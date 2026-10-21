@@ -251,6 +251,8 @@ def main():
     failures = 0
     for target in targets:
         try:
+            if not args.dry_run:
+                S.garantir_grade_dados(service, target["planilha"])
             dst_sheets = metadata_destino(service, target["planilha"])
             missing = [x for x in ABAS if x not in dst_sheets]
             if missing:
