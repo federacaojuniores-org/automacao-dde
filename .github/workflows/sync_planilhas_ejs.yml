@@ -15,6 +15,11 @@ on:
         description: "IDs das EJs separados por espaço (vazio = todas da aba de acessos)"
         required: false
         default: ""
+      dry_run:
+        description: "Somente validar e mostrar os dados, sem gravar"
+        type: boolean
+        required: false
+        default: false
       copiar_modelo:
         description: "Só copiar o modelo para a pasta do drive compartilhado (uso único)"
         type: boolean
@@ -51,15 +56,17 @@ jobs:
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
           EJS: ${{ github.event.inputs.ejs }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
           COPIAR_MODELO: ${{ github.event.inputs.copiar_modelo }}
         run: |
           ARGS=""
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           if [ "$COPIAR_MODELO" = "true" ]; then ARGS="--copiar-modelo"; fi
           for id in $EJS; do ARGS="$ARGS --ej $id"; done
           python sync_planilhas_ejs.py $ARGS
 
       - name: Validate EJ spreadsheets
-        if: ${{ github.event.inputs.copiar_modelo != 'true' }}
+        if: ${{ github.event.inputs.copiar_modelo != 'true' && github.event.inputs.dry_run != 'true' }}
         env:
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: dde-projeto-9ed22179e048.json
