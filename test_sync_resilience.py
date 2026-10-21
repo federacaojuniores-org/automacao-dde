@@ -70,9 +70,19 @@ class SyncResilienceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "obrigatórias ausentes"):
             update_sheets.validar_cabecalhos(["ID", "EMPRESA_JUNIOR"], ("FATURAMENTO",), "relatório")
 
-    def test_hidden_prize_value_keeps_label_but_not_rank(self):
-        criterion = {"campo": "Rank P1 (IMS)", "formato": "posicao", "ocultar_valor": True}
-        self.assertEqual(sync.valor_criterio(criterion, ["Rank P1 (IMS)"], [10]), "")
+    def test_configured_field_is_published_by_ej_name(self):
+        campo = {"tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "IMS",
+                 "chave": "Premiação | IMS", "formato": "formatado"}
+        snap = {"campos_config": {"Premio_ENCEJ": {
+            "bruto": [["EJ", "IMS"], ["Energy Junior", 4.6]],
+            "formatado": [["EJ", "IMS"], ["Energy Junior", "4,600"]],
+        }}}
+        ix = {"campos_config": sync.indexar_campos_configurados(snap, [campo])}
+        self.assertEqual(sync.campos_configurados(ix, "62", "Energy Junior"),
+                         [("Premiação | IMS", "4,600")])
+
+    def test_current_prize_ranks_remain_unpublished(self):
+        self.assertFalse(any("Rank" in campo["chave"] for campo in sync.carregar_campos()))
 
     def test_pi_rule_caps_cluster_3_and_drops_clusters_4_and_5(self):
         self.assertEqual(validator.MENSAGEM_PI, "Falta P.I.")

@@ -1,12 +1,11 @@
 """
 Distribui os dados da planilha mestre (00 - TRACKING [DDE 26]) para as planilhas individuais das EJs.
 
-Cada EJ tem uma cópia do modelo "Tracking da EJ". Este script só grava valores, sem fórmulas
-apontando para a mestre, em quatro lugares de cada cópia:
-  _dados!A2:B              pares "Fonte | campo" -> valor, lidos pela Visão Geral e pelo Simulador
-  Premiação!B13:H          critérios da premiação vigente (config_planilhas_ejs.json)
-  Monitoramento Geral!B8   contratos de 2026 da EJ
-  Monitoramento Acumulado!B8  linhas mês a mês da EJ
+Cada EJ tem uma cópia do modelo "Tracking da EJ". Este script grava valores somente na aba
+_dados; todas as outras abas são fórmulas do modelo:
+  _dados!A2:B              pares "Fonte | campo" -> valor
+  _dados!H2:BG             contratos de 2026 da EJ
+  _dados!H1005:BN          linhas mês a mês da EJ
 
 A lista de EJs vem da aba de acessos da mestre. As colunas são achadas pelo cabeçalho (ID, EJ,
 ID da planilha, Última sincronização, Status), então dá para mudar a ordem ou incluir outras.
@@ -35,6 +34,7 @@ socket.setdefaulttimeout(120)
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_DIR, "config_planilhas_ejs.json")
+CAMPOS_PATH = os.path.join(PROJECT_DIR, "campos_dados_ej.json")
 MASTER_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "163X5ADTJkHXK4INVs4KPdAXveUXhz0sYEoDGIdHWdOM")
 BRT = timezone(timedelta(hours=-3))
 EPOCH = datetime(1899, 12, 30)
@@ -42,8 +42,6 @@ PAUSA_ENTRE_EJS = 2.5  # segundos; cada EJ usa 2 chamadas de escrita (limite da 
 
 T_PAINEL = "Painel de Análise [G3]"
 T_FAROL = "Farol de Cluster [G3]"
-# última linha da área de critérios na aba Premiação do modelo (a nota de rodapé fica duas linhas abaixo)
-PREM_FIM = 43
 T_CORS = "CORS"
 T_GERAL = "[MONITORAMENTO] Geral v2.0"
 T_ACUM = "[MONITORAMENTO] Acumulado v2.0"
@@ -58,6 +56,14 @@ TABELAS_MESTRE = {
     "premio": "Premio_ENCEJ",
     "acessos": "Planilhas_EJs",
 }
+
+# Seções tabulares na aba _dados. A coluna H guarda um marcador; os dados começam na I.
+DADOS_COL = 7
+DADOS_CAMPOS_FIM = 500
+DADOS_GERAL_INICIO = 2
+DADOS_GERAL_FIM = 1001
+DADOS_ACUM_INICIO = 1005
+DADOS_ACUM_FIM = 1020
 
 MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
          "setembro", "outubro", "novembro", "dezembro"]
@@ -250,6 +256,30 @@ def letra(j):
     return s
 
 
+def carregar_campos(path=CAMPOS_PATH):
+    """Lê e valida os campos adicionais publicados em _dados."""
+    with open(path, encoding="utf-8") as arquivo:
+        config = json.load(arquivo)
+    campos = [c for c in config.get("campos", []) if c.get("ativo", True)]
+    obrigatorios = ("tabela", "buscar_por", "campo", "chave", "formato")
+    erros = []
+    for i, campo in enumerate(campos, 1):
+        faltam = [k for k in obrigatorios if not str(campo.get(k, "")).strip()]
+        if faltam:
+            erros.append(f"campo {i}: faltam {', '.join(faltam)}")
+        if campo.get("buscar_por") not in ("ID", "EJ"):
+            erros.append(f"campo {i}: buscar_por deve ser ID ou EJ")
+        if campo.get("formato") not in ("bruto", "formatado"):
+            erros.append(f"campo {i}: formato deve ser bruto ou formatado")
+    chaves = [c.get("chave") for c in campos]
+    duplicadas = sorted({k for k in chaves if k and chaves.count(k) > 1})
+    if duplicadas:
+        erros.append("chaves duplicadas: " + ", ".join(duplicadas))
+    if erros:
+        raise ValueError("campos_dados_ej.json inválido — " + " | ".join(erros))
+    return campos
+
+
 def mapear_tabelas(service):
     """Retorna os intervalos atuais das tabelas da mestre, sem depender de linhas fixas."""
     info = service.spreadsheets().get(
@@ -337,7 +367,8 @@ def extrair_regua(rows):
 
 # ---------------------------------------------------------------- leitura da mestre
 
-def ler_mestre(service, cfg, tabelas):
+def ler_mestre(service, cfg, tabelas, campos=None):
+    campos = campos if campos is not None else carregar_campos()
     aba_p = cfg["premiacao"]["aba"]
     ranges = [intervalo_tabela(tabelas, TABELAS_MESTRE[k])
               for k in ("painel", "farol", "cors", "cors_2025", "geral", "acum")]
@@ -348,15 +379,30 @@ def ler_mestre(service, cfg, tabelas):
     nomes = ["painel", "farol", "cors", "cors_2025", "geral", "acum",
              "farol_aux", "painel_controle", "cors_controle"]
     snap = {n: x.get("values", []) for n, x in zip(nomes, r)}
-    p = service.spreadsheets().values().batchGet(
-        spreadsheetId=MASTER_ID,
-        ranges=[intervalo_tabela(tabelas, TABELAS_MESTRE["premio"]), f"'{aba_p}'!A1:B200"],
-        valueRenderOption="FORMATTED_VALUE").execute()["valueRanges"]
-    snap["premio"], snap["premio_aux"] = (x.get("values", []) for x in p)
+    p = service.spreadsheets().values().get(
+        spreadsheetId=MASTER_ID, range=f"'{aba_p}'!A1:B200",
+        valueRenderOption="FORMATTED_VALUE").execute()
+    snap["premio_aux"] = p.get("values", [])
     # nas colunas de texto dos monitoramentos vale o que aparece na mestre (ex.: "100%" e não 1)
     f = service.spreadsheets().values().batchGet(
         spreadsheetId=MASTER_ID, ranges=ranges[4:6], valueRenderOption="FORMATTED_VALUE").execute()["valueRanges"]
     snap["geral_fmt"], snap["acum_fmt"] = (x.get("values", []) for x in f)
+    extras = sorted({c["tabela"] for c in campos})
+    faltando = [nome for nome in extras if nome not in tabelas]
+    if faltando:
+        raise ValueError("Tabelas configuradas ausentes na mestre: " + ", ".join(faltando))
+    extra_ranges = [intervalo_tabela(tabelas, nome) for nome in extras]
+    snap["campos_config"] = {}
+    if extra_ranges:
+        bruto = service.spreadsheets().values().batchGet(
+            spreadsheetId=MASTER_ID, ranges=extra_ranges, valueRenderOption="UNFORMATTED_VALUE",
+            dateTimeRenderOption="SERIAL_NUMBER").execute()["valueRanges"]
+        formatado = service.spreadsheets().values().batchGet(
+            spreadsheetId=MASTER_ID, ranges=extra_ranges, valueRenderOption="FORMATTED_VALUE").execute()["valueRanges"]
+        snap["campos_config"] = {
+            nome: {"bruto": b.get("values", []), "formatado": f.get("values", [])}
+            for nome, b, f in zip(extras, bruto, formatado)
+        }
     return snap
 
 
@@ -378,7 +424,43 @@ def mes_numero(v):
     return to_num(v)
 
 
-def indexar(snap):
+def indexar_campos_configurados(snap, campos):
+    preparados = []
+    cache = {}
+    for campo in campos:
+        chave_cache = (campo["tabela"], campo["buscar_por"], campo["formato"])
+        if chave_cache not in cache:
+            rows = snap["campos_config"][campo["tabela"]][campo["formato"]]
+            hdr = cabecalhos(rows, (campo["buscar_por"],), campo["tabela"])
+            j = hdr.index(campo["buscar_por"])
+            por_chave = {}
+            for raw in rows[1:]:
+                row = pad(raw, len(hdr))
+                valor = txt(row[j]) if campo["buscar_por"] == "ID" else norm(row[j])
+                if not valor:
+                    continue
+                if valor in por_chave:
+                    raise ValueError(f"{campo['tabela']}: {campo['buscar_por']} duplicado {valor}")
+                por_chave[valor] = row
+            cache[chave_cache] = (hdr, por_chave)
+        hdr, por_chave = cache[chave_cache]
+        if campo["campo"] not in hdr:
+            raise ValueError(f"{campo['tabela']}: coluna configurada ausente: {campo['campo']}")
+        preparados.append((campo, hdr.index(campo["campo"]), por_chave))
+    return preparados
+
+
+def campos_configurados(ix, eid, nome):
+    pares = []
+    for campo, coluna, por_chave in ix.get("campos_config", []):
+        busca = eid if campo["buscar_por"] == "ID" else norm(nome)
+        if busca not in por_chave:
+            raise ValueError(f"{campo['tabela']}: {campo['buscar_por']} não encontrado para {nome}")
+        pares.append((campo["chave"], por_chave[busca][coluna]))
+    return pares
+
+
+def indexar(snap, campos=None):
     """Organiza a mestre em dicionários por ID de EJ."""
     _, P = campos_por_id(snap["painel"], "Painel", ("EJ", "Cluster", "Farol de Cluster"))
     _, F = campos_por_id(snap["farol"], "Farol", ("EJ", "CLUSTER", "CLUSTER ALMEJADO", "FAROL",
@@ -414,22 +496,18 @@ def indexar(snap):
 
     return {"painel": P, "farol": F, "cors": C, "regua": regua,
             "ref_mes": controle_p[0], "ref_data": controle_p[1], "datas_cors": datas_cors,
-            "geral": por_id("geral"), "acum": por_id("acum")}
+            "geral": por_id("geral"), "acum": por_id("acum"),
+            "campos_config": indexar_campos_configurados(snap, campos or [])}
 
 
-def premio_da_ej(snap, cfg, nome_ej):
+def data_corte_premiacao(snap, cfg):
     pc = cfg["premiacao"]
-    rows = snap["premio"]
-    hdr = [str(x).strip() for x in rows[0]]
-    jej = hdr.index(pc["coluna_ej"])
-    alvo = norm(nome_ej)
-    linha = next((pad(r) for r in rows[1:] if len(r) > jej and norm(r[jej]) == alvo), None)
     corte = ""
-    for r in snap.get("premio_aux", rows):
+    for r in snap.get("premio_aux", []):
         r = pad(r, 4)
         if norm(r[0]) == norm(pc["rotulo_data_corte"]):
             corte = pc["texto_data_corte"].format(data=str(r[1]).strip())
-    return hdr, linha, corte
+    return corte
 
 
 # ---------------------------------------------------------------- montagem por EJ
@@ -478,25 +556,6 @@ def celula_acum(A, At, row, key, typ, ano):
     return {"SIM": "Sim", "NAO": "Não"}.get(txt(v), txt(v))
 
 
-def valor_premio(v, formato):
-    s = str(v if v is not None else "").strip()
-    if not s:
-        return ""
-    if formato == "posicao" and re.fullmatch(r"\d+", s):
-        return s + "º"
-    if formato == "inteiro":
-        return re.sub(r",\d+$", "", s)
-    return s
-
-
-def valor_criterio(c, hdr, linha):
-    if c.get("ocultar_valor"):
-        return ""
-    if c["campo"] not in hdr:
-        raise ValueError(f"coluna '{c['campo']}' não existe na aba da premiação")
-    return valor_premio(linha[hdr.index(c["campo"])], c.get("formato"))
-
-
 def montar_ej(ix, snap, cfg, eid, agora):
     """Retorna (lista de {range, values}, avisos) para a EJ."""
     avisos = []
@@ -513,7 +572,7 @@ def montar_ej(ix, snap, cfg, eid, agora):
 
     # _dados
     pares = list(painel) + ix["farol"][eid] + ix["cors"][eid]
-    hdr_p, linha_p, corte = premio_da_ej(snap, cfg, nome)
+    corte = data_corte_premiacao(snap, cfg)
     pares += [
         ("Controle | Data de referência", ref),
         ("Controle | Mês de referência", mes_numero(ix["ref_mes"])),
@@ -522,21 +581,10 @@ def montar_ej(ix, snap, cfg, eid, agora):
         ("Controle | Data comparável CORS 2025", to_serial(ix["datas_cors"][1])),
         ("Controle | Nome da premiação", cfg["premiacao"]["nome"]),
         ("Controle | Data de corte premiação", corte),
-    ] + ix["regua"]
+    ] + ix["regua"] + campos_configurados(ix, eid, nome)
     if len(ix["regua"]) != 10:
         raise ValueError("régua de cluster incompleta no Farol (esperados 5 clusters)")
     dados = [[k, "" if v is None else v] for k, v in pares]
-
-    # Premiação
-    if linha_p is None:
-        raise ValueError(f"EJ '{nome}' não encontrada na aba {cfg['premiacao']['aba']}")
-    prem = []
-    for c in cfg["premiacao"]["criterios"]:
-        if "grupo" in c:
-            prem.append([c["grupo"], "", "", "", "", "", ""])
-            continue
-        v = valor_criterio(c, hdr_p, linha_p)
-        prem.append([c["campo"], "", "", "", "", v, c.get("descricao", "")])
 
     # Monitoramento Geral
     gh, gmap = ix["geral"]
@@ -570,21 +618,23 @@ def montar_ej(ix, snap, cfg, eid, agora):
         soma += r[ic] if isinstance(r[ic], (int, float)) else 0
         r[ia] = soma
 
-    blocos = [{"range": f"'_dados'!A2:B{1 + len(dados)}", "values": dados},
-              {"range": f"'Premiação'!B13:H{12 + len(prem)}", "values": prem}]
+    if len(geral) > DADOS_GERAL_FIM - DADOS_GERAL_INICIO + 1:
+        raise ValueError("mais contratos do que cabem na seção de Monitoramento Geral em _dados")
+    if len(acum) > DADOS_ACUM_FIM - DADOS_ACUM_INICIO + 1:
+        raise ValueError("mais meses do que cabem na seção de Monitoramento Acumulado em _dados")
+    blocos = [{"range": f"'_dados'!A2:B{1 + len(dados)}", "values": dados}]
     if geral:
-        blocos.append({"range": "'Monitoramento Geral'!B8", "values": geral})
+        blocos.append({"range": f"'_dados'!{letra(DADOS_COL)}{DADOS_GERAL_INICIO}",
+                       "values": [[eid, *row] for row in geral]})
     if acum:
-        blocos.append({"range": "'Monitoramento Acumulado'!B8", "values": acum})
-    # o que sobrar abaixo do que foi gravado (linhas de uma rodada anterior) é apagado
-    # a área de critérios da Premiação vai da linha 13 à PREM_FIM; logo abaixo fica a nota de rodapé
-    if 12 + len(prem) > PREM_FIM:
-        raise ValueError(f"a premiação tem mais critérios do que cabem na aba (linhas 13 a {PREM_FIM})")
-    limpar = [f"'_dados'!A{2 + len(dados)}:B150",
-              f"'Monitoramento Geral'!B{8 + len(geral)}:AZ1000",
-              f"'Monitoramento Acumulado'!B{8 + len(acum)}:BG1000"]
-    if 13 + len(prem) <= PREM_FIM:
-        limpar += [f"'Premiação'!B{13 + len(prem)}:B{PREM_FIM}", f"'Premiação'!G{13 + len(prem)}:H{PREM_FIM}"]
+        blocos.append({"range": f"'_dados'!{letra(DADOS_COL)}{DADOS_ACUM_INICIO}",
+                       "values": [[eid, *row] for row in acum]})
+    # o que sobrar de uma rodada anterior é apagado apenas dentro da aba _dados
+    limpar = [f"'_dados'!A{2 + len(dados)}:B{DADOS_CAMPOS_FIM}",
+              f"'_dados'!{letra(DADOS_COL)}{DADOS_GERAL_INICIO + len(geral)}:"
+              f"{letra(DADOS_COL + len(COLS_GERAL))}{DADOS_GERAL_FIM}",
+              f"'_dados'!{letra(DADOS_COL)}{DADOS_ACUM_INICIO + len(acum)}:"
+              f"{letra(DADOS_COL + len(COLS_ACUM))}{DADOS_ACUM_FIM}"]
     return nome, blocos, limpar, avisos
 
 
@@ -610,8 +660,40 @@ def com_retry(req, tentativas=6):
             raise
 
 
+def garantir_grade_dados(service, sid):
+    meta = com_retry(service.spreadsheets().get(
+        spreadsheetId=sid,
+        fields="namedRanges(namedRangeId,name,range),"
+               "sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))"))
+    sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == "_dados")
+    props = sheet["properties"]
+    grid = props["gridProperties"]
+    colunas = DADOS_COL + 1 + max(len(COLS_GERAL), len(COLS_ACUM))
+    requests = []
+    if grid["rowCount"] < DADOS_ACUM_FIM:
+        requests.append({"appendDimension": {"sheetId": props["sheetId"], "dimension": "ROWS",
+                                               "length": DADOS_ACUM_FIM - grid["rowCount"]}})
+    if grid["columnCount"] < colunas:
+        requests.append({"appendDimension": {"sheetId": props["sheetId"], "dimension": "COLUMNS",
+                                               "length": colunas - grid["columnCount"]}})
+    for named in meta.get("namedRanges", []):
+        if named["name"] not in ("Dados_Campo", "Dados_Valor"):
+            continue
+        rng = dict(named["range"])
+        if rng.get("endRowIndex", 0) >= DADOS_CAMPOS_FIM:
+            continue
+        rng["endRowIndex"] = DADOS_CAMPOS_FIM
+        requests.append({"updateNamedRange": {
+            "namedRange": {"namedRangeId": named["namedRangeId"], "name": named["name"], "range": rng},
+            "fields": "range",
+        }})
+    if requests:
+        com_retry(service.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": requests}))
+
+
 def gravar(service, sid, blocos, limpar):
     # grava primeiro e limpa depois: se a escrita falhar, a EJ continua vendo os dados anteriores
+    garantir_grade_dados(service, sid)
     v = service.spreadsheets().values()
     com_retry(v.batchUpdate(spreadsheetId=sid, body={"valueInputOption": "RAW", "data": blocos}))
     com_retry(v.batchClear(spreadsheetId=sid, body={"ranges": limpar}))
@@ -680,19 +762,14 @@ def validar_fonte(ix, snap, cfg, alvo):
     if faltam:
         problemas.append("Acumulado: colunas ausentes: " + ", ".join(faltam))
 
-    ph = cabecalhos(snap["premio"], (cfg["premiacao"]["coluna_ej"],), cfg["premiacao"]["aba"])
-    faltam = [c["campo"] for c in cfg["premiacao"]["criterios"] if "campo" in c and c["campo"] not in ph]
-    if faltam:
-        problemas.append("Premiação: colunas ausentes: " + ", ".join(faltam))
-    if 12 + len(cfg["premiacao"]["criterios"]) > PREM_FIM:
-        problemas.append(f"Premiação: critérios excedem as linhas 13 a {PREM_FIM}")
-
     for eid in ids:
         if eid not in ix["painel"]:
             continue
         nome = txt(dict(ix["painel"][eid]).get("Painel | EJ", ""))
-        if premio_da_ej(snap, cfg, nome)[1] is None:
-            problemas.append(f"Premiação: EJ ausente: {nome}")
+        try:
+            campos_configurados(ix, eid, nome)
+        except ValueError as exc:
+            problemas.append(str(exc))
     if problemas:
         raise ValueError("Pré-validação da mestre falhou — " + " | ".join(problemas))
 
@@ -707,6 +784,7 @@ def main():
     args = ap.parse_args()
 
     cfg = json.load(open(CONFIG_PATH, encoding="utf-8"))
+    campos = carregar_campos()
     agora = datetime.now(BRT)
     service = None
     if args.snapshot:
@@ -734,9 +812,9 @@ def main():
             "acessos_inicio": tabelas[TABELAS_MESTRE["acessos"]][1].get("startRowIndex", 0),
         }
         print("Lendo a planilha mestre...")
-        snap.update(ler_mestre(service, cfg, tabelas))
+        snap.update(ler_mestre(service, cfg, tabelas, campos))
 
-    ix = indexar(snap)
+    ix = indexar(snap, campos)
     alvo = acessos(snap, cfg) if snap.get("acessos") else [{"linha": None, "id": e, "planilha": ""} for e in args.ej or []]
     if args.ej:
         alvo = [a for a in alvo if a["id"] in set(args.ej)]

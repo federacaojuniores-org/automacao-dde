@@ -32,6 +32,20 @@ class ApplyModelTest(unittest.TestCase):
         self.assertEqual(len(requests), 2)
         self.assertEqual(requests[0]["updateDimensionProperties"]["range"]["endIndex"], 2)
 
+    def test_monitoring_data_rows_are_cleared_but_keep_dynamic_formula(self):
+        rows = [{"values": []} for _ in range(7)] + [{"values": [
+            {}, {"userEnteredValue": {"formulaValue": "=FILTER(_dados!I2:BG1001;_dados!H2:H1001<>\"\")"},
+             "userEnteredFormat": {"numberFormat": {"type": "DATE"}}}
+        ]}]
+        src = {"properties": {"sheetId": 1, "gridProperties": {}}, "data": [{"rowData": rows}]}
+        dst = {"properties": {"sheetId": 2, "gridProperties": {"rowCount": 20, "columnCount": 3}}}
+        requests = model.planejar_aba("Monitoramento Geral", src, [[""] for _ in range(7)] + [["", "=x"]],
+                                      dst, [[""] for _ in range(9)] + [["antigo"]], {1: 2})
+        clears = [r["repeatCell"] for r in requests if "repeatCell" in r and
+                  r["repeatCell"]["fields"] == "userEnteredValue"]
+        self.assertEqual(clears[0]["range"]["startRowIndex"], 8)
+        self.assertGreaterEqual(clears[0]["range"]["endRowIndex"], 1007)
+
 
 if __name__ == "__main__":
     unittest.main()

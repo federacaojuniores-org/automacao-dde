@@ -16,8 +16,9 @@ Como Funciona (Arquitetura)
 ## Estrutura de Arquivos
 
 *   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2), às 05:30 e 17:30.
-*   `sync_planilhas_ejs.py`: Copia os dados de cada EJ da planilha mestre para a planilha individual dela (só valores). Workflow próprio, às 07:05 e 19:05.
-*   `config_planilhas_ejs.json`: Nome da aba de acessos e critérios da premiação vigente, usados pela Fase 3.
+*   `sync_planilhas_ejs.py`: Copia os dados de cada EJ da planilha mestre somente para a aba oculta `_dados` da planilha individual.
+*   `campos_dados_ej.json`: Catálogo editável dos campos adicionais que entram em `_dados`, incluindo premiações.
+*   `config_planilhas_ejs.json`: Configuração operacional: modelo, pasta, aba de acessos e título da premiação vigente.
 *   `test_exact_downloads.py`: Script do Playwright para navegação e download do portal BJ.
 *   `update_sheets.py`: Script de leitura de Excel e escrita auto-alinhada no Google Sheets via API.
 *   `validate_sheets.py`: Script de diagnóstico que lê os indicadores do Dashboard para validar a consistência das fórmulas após cada atualização.
@@ -78,13 +79,15 @@ Para acompanhar a execução, basta abrir a aba **Actions** do seu repositório 
 
 ## Planilhas individuais das EJs (Fase 3)
 
-Cada EJ tem uma cópia do modelo "Tracking da EJ" com as abas Visão Geral, Premiação, Simulador, Monitoramento Geral e Monitoramento Acumulado. O `sync_planilhas_ejs.py` roda no workflow "Planilhas das EJs" às 07:05 e 19:05 (horário de Brasília), depois da atualização da mestre, e grava em cada cópia apenas valores, sem nenhuma fórmula ligada à mestre.
+Cada EJ tem uma cópia do modelo "Tracking da EJ". O `sync_planilhas_ejs.py` roda automaticamente depois da atualização bem-sucedida da mestre e grava valores exclusivamente na aba oculta `_dados`. Visão Geral, Premiação, Simulador e os dois Monitoramentos são visões dinâmicas por fórmula, sem ligação externa com a matriz.
 
 **Aba de acessos na mestre** (`[ACESSO] Planilhas EJs`): uma linha por EJ com as colunas ID, EJ, E-mail do(a) presidente, ID da planilha, Link, Última sincronização e Status. O script lê as quatro primeiras e escreve as duas últimas. Linhas sem ID da planilha ficam com o status "Sem ID da planilha". Se a aba não existir, a fase 3 termina sem fazer nada.
 
 **Criar a planilha de uma EJ nova:** faça uma cópia do modelo no Drive, compartilhe com a conta de serviço como editora e cole o ID na aba de acessos. A conta de serviço não tem cota no Drive, então não consegue criar arquivos. O compartilhamento com a presidência é feito por uma pessoa e o script não mexe nele.
 
-**Trocar a premiação:** edite o bloco `premiacao` do `config_planilhas_ejs.json` (nome, aba, critérios e descrições). Se a quantidade de critérios ou de grupos mudar, ajuste também o layout da aba Premiação no modelo.
+**Adicionar ou retirar dados:** edite `campos_dados_ej.json`. Cada item informa a tabela nativa da matriz, se a EJ será localizada por `ID` ou `EJ`, o cabeçalho da coluna, a chave publicada em `_dados` e se o valor deve ser bruto ou formatado. Apagar um item ou definir `ativo` como `false` remove o campo na sincronização seguinte. Antes de escrever, o fluxo valida tabelas, colunas, chaves duplicadas e a existência de cada EJ.
+
+**Trocar a premiação:** adicione os campos da nova tabela em `campos_dados_ej.json` e altere a aba Premiação no modelo para consultar as novas chaves com `XLOOKUP`. Os rankings atuais estão declarados com `ativo: false` para não serem publicados às EJs.
 
 ```bash
 python sync_planilhas_ejs.py --dry-run          # lê a mestre e mostra o que seria gravado

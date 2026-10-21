@@ -1,0 +1,40 @@
+{
+  "_como_usar": [
+    "Este arquivo controla campos adicionais publicados como linhas em _dados.",
+    "Para adicionar um campo, copie um objeto, informe a tabela nativa da matriz e o cabeçalho exato da coluna.",
+    "buscar_por aceita ID ou EJ. Use ID sempre que a tabela tiver essa coluna.",
+    "formato aceita bruto ou formatado. Use formatado para dinheiro, percentuais e posições exibidas como texto.",
+    "A chave deve ser única e estável. As fórmulas do modelo procuram exatamente essa chave.",
+    "Para retirar um campo, apague o objeto ou defina ativo como false.",
+    "Painel_Analise, Cluster_JUNIORES, CORS e CORS_2025_Ate_Data já publicam automaticamente todas as colunas. Não repita esses campos aqui."
+  ],
+  "campos": [
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "IMS", "chave": "Premiação | IMS", "formato": "formatado"},
+    {"ativo": false, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Rank P1 (IMS)", "chave": "Premiação | Rank P1 (IMS)", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Índice Cluster Atual", "chave": "Premiação | Índice Cluster Atual", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Cluster 2026", "chave": "Premiação | Cluster 2026", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Índice Cluster 2025", "chave": "Premiação | Índice Cluster 2025", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Cluster 2025", "chave": "Premiação | Cluster 2025", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Piso 2026", "chave": "Premiação | Piso 2026", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Teto 2026", "chave": "Premiação | Teto 2026", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Posição 2026", "chave": "Premiação | Posição 2026", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Posição 2025", "chave": "Premiação | Posição 2025", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Evolução (P2)", "chave": "Premiação | Evolução (P2)", "formato": "formatado"},
+    {"ativo": false, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Rank P2", "chave": "Premiação | Rank P2", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Faturamento desde Data de corte", "chave": "Premiação | Faturamento desde Data de corte", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Meta Fat. Ano", "chave": "Premiação | Meta Fat. Ano", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Atingimento Meta", "chave": "Premiação | Atingimento Meta", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "NOTA P3", "chave": "Premiação | NOTA P3", "formato": "formatado"},
+    {"ativo": false, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Rank P3", "chave": "Premiação | Rank P3", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Rep. Fat. Colaborativo", "chave": "Premiação | Rep. Fat. Colaborativo", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Fat. Colab.", "chave": "Premiação | Fat. Colab.", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Engajamento com MEJ", "chave": "Premiação | Engajamento com MEJ", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Bloco Evolução", "chave": "Premiação | Bloco Evolução", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Fat. / Membro", "chave": "Premiação | Fat. / Membro", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Projetos de Impacto", "chave": "Premiação | Projetos de Impacto", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Políticas D&I", "chave": "Premiação | Políticas D&I", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Bloco Impacto", "chave": "Premiação | Bloco Impacto", "formato": "formatado"},
+    {"ativo": true, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "NOTA P4", "chave": "Premiação | NOTA P4", "formato": "formatado"},
+    {"ativo": false, "tabela": "Premio_ENCEJ", "buscar_por": "EJ", "campo": "Rank P4", "chave": "Premiação | Rank P4", "formato": "formatado"}
+  ]
+}

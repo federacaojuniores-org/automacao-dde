@@ -27,6 +27,7 @@ auth.json
 credentials*.json
 dde-projeto-*.json
 !config_planilhas_ejs.json
+!campos_dados_ej.json
 
 # OS metadata
 .DS_Store

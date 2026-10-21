@@ -6,10 +6,10 @@ Para cada EJ da aba de acessos verifica:
   estrutura    abas, _dados oculta, intervalos nomeados, gráficos, proteções e entradas livres do Simulador
   erros        nenhuma célula com #N/A, #REF!, #VALUE!, #DIV/0!, #ERROR!, #NAME? ou #NUM!
   identidade   ID e nome da EJ no _dados batem com a linha da aba de acessos
-  gravação     _dados, Premiação e Monitoramentos iguais, célula a célula, ao que a sincronização gravaria agora
+  gravação     _dados igual, célula a célula, ao que a sincronização gravaria agora; as demais abas exibem fórmulas
                (sem linhas antigas sobrando embaixo)
   mestre       contagem de contratos e de meses e soma do faturamento contadas direto nas abas da mestre;
-               critérios da Premiação comparados direto com a linha da EJ na aba do prêmio
+               critérios da Premiação comparados com os campos publicados em _dados
   simulador    sem cenário preenchido, índice igual ao previsto do Farol, cluster, "para subir" e
                "para não cair" recalculados aqui pela regra do índice
   atualização  data de "Atualizado em" das últimas 24 horas
@@ -106,6 +106,7 @@ def main():
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     cfg = json.load(open(S.CONFIG_PATH, encoding="utf-8"))
+    campos = S.carregar_campos()
     cred = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "dde-projeto-9ed22179e048.json")
     cred = cred if os.path.isabs(cred) else os.path.join(S.PROJECT_DIR, cred)
     creds = service_account.Credentials.from_service_account_file(
@@ -121,8 +122,8 @@ def main():
         "acessos": S.ler_acessos(sh, cfg, tabelas),
         "acessos_inicio": tabelas[S.TABELAS_MESTRE["acessos"]][1].get("startRowIndex", 0),
     }
-    snap.update(S.ler_mestre(sh, cfg, tabelas))
-    ix = S.indexar(snap)
+    snap.update(S.ler_mestre(sh, cfg, tabelas, campos))
+    ix = S.indexar(snap, campos)
     agora = datetime.now(S.BRT)
     alvo = S.acessos(snap, cfg)
     if args.ej:
@@ -149,10 +150,6 @@ def main():
     gi = {k: i for i, k in enumerate(gh)}
     ai = {k: i for i, k in enumerate(ah)}
     tem_contrato = lambda r: any(S.txt(r[gi[k]]) for k in ("DATA_DE_ASSINATURA", "NOME_DO_CLIENTE", "FATURAMENTO"))
-
-    prem = snap["premio"]
-    phdr = [str(x).strip() for x in prem[0]]
-    jej = phdr.index(cfg["premiacao"]["coluna_ej"])
 
     regua = {}
     for k, v in ix["regua"]:
@@ -184,7 +181,7 @@ def main():
             # estrutura
             meta = S.com_retry(sh.spreadsheets().get(
                 spreadsheetId=sid,
-                fields="namedRanges(name),sheets(properties(title,hidden),charts(chartId),"
+                fields="namedRanges(name,range),sheets(properties(title,hidden),charts(chartId),"
                        "protectedRanges(warningOnly,range,unprotectedRanges,editors))"))
             titulos = [s["properties"]["title"] for s in meta["sheets"]]
             if titulos != ABAS:
@@ -196,6 +193,10 @@ def main():
             for n in ("Dados_Campo", "Dados_Valor"):
                 if n not in nomes:
                     prob.append(f"intervalo nomeado {n} ausente")
+            if any(n["name"] in ("Dados_Campo", "Dados_Valor") and
+                   n.get("range", {}).get("endRowIndex", 0) < S.DADOS_CAMPOS_FIM
+                   for n in meta.get("namedRanges", [])):
+                prob.append("intervalos Dados_Campo/Dados_Valor não chegam até a linha 500")
             for t, s in por_aba.items():
                 if len(s.get("charts", [])) != graf_mod.get(t, 0):
                     prob.append(f"{t}: {len(s.get('charts', []))} gráfico(s), o modelo tem {graf_mod.get(t, 0)}")
@@ -213,7 +214,7 @@ def main():
                     prob.append(f"{t}: a conta de serviço não pode editar a área protegida")
 
             # valores
-            rng = [f"'{t}'!A1:BZ1000" for t in ABAS]
+            rng = [f"'{t}'!A1:BZ{S.DADOS_ACUM_FIM if t == '_dados' else 1000}" for t in ABAS]
             bu = S.com_retry(sh.spreadsheets().values().batchGet(
                 spreadsheetId=sid, ranges=rng, valueRenderOption="UNFORMATTED_VALUE",
                 dateTimeRenderOption="SERIAL_NUMBER"))["valueRanges"]
@@ -221,6 +222,20 @@ def main():
                 spreadsheetId=sid, ranges=rng, valueRenderOption="FORMATTED_VALUE"))["valueRanges"]
             U = {t: celulas(v.get("values", []), 1, 0) for t, v in zip(ABAS, bu)}
             FV = {t: celulas(v.get("values", []), 1, 0) for t, v in zip(ABAS, bf)}
+            formulas = S.com_retry(sh.spreadsheets().values().batchGet(
+                spreadsheetId=sid,
+                ranges=["'Premiação'!G13:G59", "'Monitoramento Geral'!B8", "'Monitoramento Acumulado'!B8"],
+                valueRenderOption="FORMULA"))["valueRanges"]
+            prem_formulas = formulas[0].get("values", [])
+            if any(str(FV["Premiação"].get((r, 7), "")).strip() and
+                   (r - 13 >= len(prem_formulas) or not prem_formulas[r - 13] or
+                    not str(prem_formulas[r - 13][0]).startswith("="))
+                   for r in range(13, 60)):
+                prob.append("Premiação: há valor de critério que não vem de fórmula")
+            for titulo, item in zip(("Monitoramento Geral", "Monitoramento Acumulado"), formulas[1:]):
+                valor = (item.get("values") or [[""]])[0][0]
+                if not str(valor).startswith("="):
+                    prob.append(f"{titulo}: B8 não contém a fórmula dinâmica")
 
             # erros de fórmula
             for t in ABAS:
@@ -233,7 +248,8 @@ def main():
                     prob.append(f"{t}: {len(errs)} célula(s) com erro, a primeira em {col(c)}{r}")
 
             # identidade
-            dados = {str(U["_dados"].get((r, 0), "")): U["_dados"].get((r, 1), "") for r in range(2, 200)}
+            dados = {str(U["_dados"].get((r, 0), "")): U["_dados"].get((r, 1), "")
+                     for r in range(2, S.DADOS_CAMPOS_FIM + 1)}
             if S.txt(dados.get("Painel | ID")) != eid:
                 prob.append("_dados: Painel | ID não é o ID desta EJ")
             if S.norm(dados.get("Painel | EJ")) != S.norm(a["ej"]):
@@ -249,7 +265,7 @@ def main():
                 r0 = int(m[2])
                 vals = b["values"]
                 lido = U[aba]
-                if aba == "_dados":
+                if aba == "_dados" and c0 == 0:
                     # a hora da última atualização muda a cada rodada; confere à parte
                     vals = [row for row in vals if row[0] != "Controle | Última atualização"]
                     lido = {k: v for k, v in lido.items() if k[0] >= 2}
@@ -261,17 +277,22 @@ def main():
                     if extras:
                         prob.append(f"_dados: {len(extras)} campo(s) a mais que o esperado")
                     continue
-                if aba == "Premiação":
-                    lido = {k: v for k, v in lido.items() if 13 <= k[0] <= S.PREM_FIM and 1 <= k[1] <= 7}
+                if aba == "_dados":
+                    fim = S.DADOS_GERAL_FIM if r0 == S.DADOS_GERAL_INICIO else S.DADOS_ACUM_FIM
+                    limite = c0 + len(vals[0]) - 1 if vals else c0
+                    lido = {k: v for k, v in lido.items()
+                            if r0 <= k[0] <= fim and c0 <= k[1] <= limite}
                 comparar_bloco(vals, lido, r0, c0, aba, prob, limite=c0 + len(vals[0]) - 1 if vals else None)
-            if not any(b["range"].startswith("'Monitoramento Geral'") for b in blocos):
-                sobra = [k for k in U["Monitoramento Geral"] if k[0] >= 8 and k[1] >= 1]
-                if sobra:
-                    prob.append(f"Monitoramento Geral: {len(sobra)} célula(s) preenchidas numa EJ sem contratos")
-            if not any(b["range"].startswith("'Monitoramento Acumulado'") for b in blocos):
-                sobra = [k for k in U["Monitoramento Acumulado"] if k[0] >= 8 and k[1] >= 1]
-                if sobra:
-                    prob.append(f"Monitoramento Acumulado: {len(sobra)} célula(s) preenchidas numa EJ sem meses")
+            bloco_g = next((b for b in blocos if b["range"].startswith(f"'_dados'!{S.letra(S.DADOS_COL)}{S.DADOS_GERAL_INICIO}")), None)
+            bloco_a = next((b for b in blocos if b["range"].startswith(f"'_dados'!{S.letra(S.DADOS_COL)}{S.DADOS_ACUM_INICIO}")), None)
+            esperado_g = [r[1:] for r in bloco_g["values"]] if bloco_g else []
+            esperado_a = [r[1:] for r in bloco_a["values"]] if bloco_a else []
+            lido_g = {k: v for k, v in U["Monitoramento Geral"].items() if k[0] >= 8 and k[1] >= 1}
+            lido_a = {k: v for k, v in U["Monitoramento Acumulado"].items() if k[0] >= 8 and k[1] >= 1}
+            comparar_bloco(esperado_g, lido_g, 8, 1, "Monitoramento Geral", prob,
+                           limite=len(S.COLS_GERAL))
+            comparar_bloco(esperado_a, lido_a, 8, 1, "Monitoramento Acumulado", prob,
+                           limite=len(S.COLS_ACUM))
 
             # mestre, contado direto
             linhas_g = [r for r in gm.get(eid, []) if tem_contrato(r)]
@@ -297,26 +318,13 @@ def main():
             if not math.isclose(soma_a, soma_am, abs_tol=0.01):
                 prob.append("Monitoramento Acumulado: soma do faturamento mensal difere da mestre")
 
-            # Premiação direto da aba do prêmio
-            linha_p = next((S.pad(r) for r in prem[1:] if len(r) > jej and S.norm(r[jej]) == S.norm(a["ej"])), None)
-            if linha_p is None:
-                prob.append("Premiação: EJ não encontrada na aba do prêmio da mestre")
-            else:
-                n_crit = 0
-                ocultos = {c["campo"] for c in cfg["premiacao"]["criterios"] if c.get("ocultar_valor")}
-                for r in range(13, S.PREM_FIM + 1):
-                    campo = str(FV["Premiação"].get((r, 1), "")).strip()
-                    if campo in phdr:
-                        n_crit += 1
-                        esperado = "" if campo in ocultos else str(linha_p[phdr.index(campo)]).strip()
-                        lido_v = str(FV["Premiação"].get((r, 6), "")).strip()
-                        e2 = re.sub(r",\d+$", "", esperado.replace("º", ""))
-                        l2 = re.sub(r",\d+$", "", lido_v.replace("º", ""))
-                        if lido_v != esperado and l2 != e2:
-                            prob.append(f"Premiação: G{r} ({campo}) difere da mestre")
-                n_cfg = sum(1 for c in cfg["premiacao"]["criterios"] if "campo" in c)
-                if n_crit != n_cfg:
-                    prob.append(f"Premiação: {n_crit} critério(s) na aba, o config tem {n_cfg}")
+            # Premiação é apenas uma visão dinâmica dos campos publicados em _dados.
+            for r in range(13, 60):
+                campo = str(FV["Premiação"].get((r, 1), "")).strip()
+                descricao = str(FV["Premiação"].get((r, 7), "")).strip()
+                if descricao and not igual(FV["Premiação"].get((r, 6), ""),
+                                           dados.get(f"Premiação | {campo}", "")):
+                    prob.append(f"Premiação: G{r} ({campo}) difere de _dados")
 
             if not igual(U["Visão Geral"].get((36, 5)), S.to_num(dados.get("Painel | PI"))):
                 prob.append("Visão Geral: F36 (projetos de impacto) difere da mestre")
