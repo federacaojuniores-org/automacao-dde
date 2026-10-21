@@ -664,12 +664,17 @@ def garantir_grade_dados(service, sid):
     meta = com_retry(service.spreadsheets().get(
         spreadsheetId=sid,
         fields="namedRanges(namedRangeId,name,range),"
-               "sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))"))
+               "sheets(properties(sheetId,title,hidden,gridProperties(rowCount,columnCount)))"))
     sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == "_dados")
     props = sheet["properties"]
     grid = props["gridProperties"]
     colunas = DADOS_COL + 1 + max(len(COLS_GERAL), len(COLS_ACUM))
     requests = []
+    if not props.get("hidden"):
+        requests.append({"updateSheetProperties": {
+            "properties": {"sheetId": props["sheetId"], "hidden": True},
+            "fields": "hidden",
+        }})
     if grid["rowCount"] < DADOS_ACUM_FIM:
         requests.append({"appendDimension": {"sheetId": props["sheetId"], "dimension": "ROWS",
                                                "length": DADOS_ACUM_FIM - grid["rowCount"]}})
