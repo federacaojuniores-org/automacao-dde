@@ -1,7 +1,8 @@
 import os
 from datetime import datetime, timedelta
 import socket
-import time
+
+import sync_planilhas_ejs as S
 
 # Set a generous global socket timeout to prevent httplib2 from dropping stale connections 
 # after the long Playwright download phase
@@ -97,10 +98,10 @@ def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
 
     # 2. Load ORIGINAL headers from the restored Google Sheet
     print(f"  Reading original headers from Google Sheet tab: '{sheet_name}'...")
-    sheet_metadata = service.spreadsheets().values().get(
+    sheet_metadata = S.com_retry(service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID,
         range=f"'{sheet_name}'!A1:ZZ1"
-    ).execute()
+    ))
     
     gs_rows = sheet_metadata.get("values", [])
     if not gs_rows:
@@ -144,7 +145,7 @@ def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
 
     # 4. Check and expand Grid Capacity if needed!
     print(f"  Checking grid capacity for '{sheet_name}'...")
-    spreadsheet_info = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+    spreadsheet_info = S.com_retry(service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID))
     sheet_id = None
     current_rows = 0
     for s in spreadsheet_info.get('sheets', []):
@@ -157,7 +158,7 @@ def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
     if sheet_id is not None and required_rows > current_rows:
         rows_to_add = required_rows - current_rows + 500  # Add 500 extra buffer rows
         print(f"  [Capacity Expansion] Sheet has {current_rows} rows. Appending {rows_to_add} new rows...")
-        service.spreadsheets().batchUpdate(
+        S.com_retry(service.spreadsheets().batchUpdate(
             spreadsheetId=SPREADSHEET_ID,
             body={
                 "requests": [{
@@ -168,7 +169,7 @@ def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
                     }
                 }]
             }
-        ).execute()
+        ))
 
     # 5. Write first; only clear obsolete trailing rows after every chunk succeeds.
     chunk_size = 500
@@ -180,28 +181,18 @@ def update_sheet_auto_aligned(service, filename, sheet_name, required_headers):
         end_row = i + len(chunk)
         print(f"    Writing rows {start_row} to {end_row}...")
         
-        # Add retry loop for socket timeouts
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                service.spreadsheets().values().update(
-                    spreadsheetId=SPREADSHEET_ID,
-                    range=f"'{sheet_name}'!A{start_row}",
-                    valueInputOption="USER_ENTERED",
-                    body={"values": chunk}
-                ).execute()
-                break # Success, exit retry loop
-            except Exception as e:
-                print(f"      [Warning] Chunk write failed (Attempt {attempt+1}/{max_retries}): {e}")
-                if attempt == max_retries - 1:
-                    raise e
-                time.sleep(5) # Wait before retrying
+        S.com_retry(service.spreadsheets().values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"'{sheet_name}'!A{start_row}",
+            valueInputOption="USER_ENTERED",
+            body={"values": chunk}
+        ))
 
     if required_rows < current_rows:
-        service.spreadsheets().values().clear(
+        S.com_retry(service.spreadsheets().values().clear(
             spreadsheetId=SPREADSHEET_ID,
             range=f"'{sheet_name}'!A{required_rows + 1}:ZZ{current_rows}"
-        ).execute()
+        ))
     
     print(f"  SUCCESS: Updated {len(aligned_values)} rows in Google Sheets!")
 
@@ -229,24 +220,24 @@ def main():
     now_brasilia = datetime.utcnow() - timedelta(hours=3)
     today_str = now_brasilia.strftime("%d/%m/%Y")
     print(f"\n--- Updating reference date in '[REDE] Dashboard'!C3 to Brasília date: {today_str} ---")
-    service.spreadsheets().values().update(
+    S.com_retry(service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="'[REDE] Dashboard'!C3",
         valueInputOption="USER_ENTERED",
         body={"values": [[today_str]]}
-    ).execute()
+    ))
     print("Dashboard reference date updated successfully!")
     
     # Update the last updated log in B4 (merged B-H4) to: "Dados atualizados pela última vez em: dd/MM/yy - hh:mm" (Brasília Time!)
     now_str = now_brasilia.strftime("%d/%m/%y - %H:%M")
     timestamp_text = f"Dados atualizados pela última vez em: {now_str}"
     print(f"--- Updating last updated log in '[REDE] Dashboard'!B4 to: '{timestamp_text}' ---")
-    service.spreadsheets().values().update(
+    S.com_retry(service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
         range="'[REDE] Dashboard'!B4",
         valueInputOption="USER_ENTERED",
         body={"values": [[timestamp_text]]}
-    ).execute()
+    ))
     print("Dashboard last updated log updated successfully!")
     
     print("\nAll 3 destination sheets and the Dashboard reference date have been successfully updated with self-aligned columns!")

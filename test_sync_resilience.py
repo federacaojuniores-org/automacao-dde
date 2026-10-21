@@ -1,4 +1,7 @@
+import sys
+import types
 import unittest
+from unittest.mock import patch
 
 import sync_planilhas_ejs as sync
 import update_sheets
@@ -6,6 +9,29 @@ import validar_planilhas_ejs as validator
 
 
 class SyncResilienceTest(unittest.TestCase):
+    def test_google_internal_error_is_retried(self):
+        class HttpError(Exception):
+            def __init__(self):
+                self.resp = types.SimpleNamespace(status=500)
+
+        class Request:
+            calls = 0
+
+            def execute(self):
+                self.calls += 1
+                if self.calls == 1:
+                    raise HttpError()
+                return {"values": [["ID"]]}
+
+        googleapiclient = types.ModuleType("googleapiclient")
+        errors = types.ModuleType("googleapiclient.errors")
+        errors.HttpError = HttpError
+        request = Request()
+        with patch.dict(sys.modules, {"googleapiclient": googleapiclient, "googleapiclient.errors": errors}), \
+             patch.object(sync.time, "sleep"):
+            self.assertEqual(sync.com_retry(request), {"values": [["ID"]]})
+        self.assertEqual(request.calls, 2)
+
     def test_named_table_range_uses_live_metadata(self):
         tables = {"Cluster_JUNIORES": ("Farol de Cluster [G3]", {
             "startRowIndex": 2, "endRowIndex": 32,
