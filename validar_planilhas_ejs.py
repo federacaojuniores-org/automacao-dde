@@ -6,7 +6,7 @@ Para cada EJ da aba de acessos verifica:
   estrutura    abas, _dados oculta, intervalos nomeados, gráficos, proteções e entradas livres do Simulador
   erros        nenhuma célula com #N/A, #REF!, #VALUE!, #DIV/0!, #ERROR!, #NAME? ou #NUM!
   identidade   ID e nome da EJ no _dados batem com a linha da aba de acessos
-  gravação     _dados igual, célula a célula, ao que a sincronização gravaria agora; as demais abas exibem fórmulas
+  gravação     _dados e Monitoramentos iguais, célula a célula, ao que a sincronização gravaria agora
                (sem linhas antigas sobrando embaixo)
   mestre       contagem de contratos e de meses e soma do faturamento contadas direto nas abas da mestre;
                critérios da Premiação comparados com os campos publicados em _dados
@@ -181,14 +181,21 @@ def main():
             # estrutura
             meta = S.com_retry(sh.spreadsheets().get(
                 spreadsheetId=sid,
-                fields="namedRanges(name,range),sheets(properties(title,hidden),charts(chartId),"
-                       "protectedRanges(warningOnly,range,unprotectedRanges,editors))"))
+                fields="namedRanges(name,range),sheets(properties(title,hidden,gridProperties(rowCount,columnCount)),"
+                       "charts(chartId),tables(name,range),protectedRanges(warningOnly,range,unprotectedRanges,editors))"))
             titulos = [s["properties"]["title"] for s in meta["sheets"]]
             if titulos != ABAS:
                 prob.append("abas diferentes do modelo: " + ", ".join(titulos))
             por_aba = {s["properties"]["title"]: s for s in meta["sheets"]}
             if not por_aba.get("_dados", {}).get("properties", {}).get("hidden"):
                 prob.append("aba _dados não está oculta")
+            dados_sheet = por_aba.get("_dados", {})
+            dados_grid = dados_sheet.get("properties", {}).get("gridProperties", {})
+            if dados_grid.get("rowCount", 0) > S.DADOS_CAMPOS_FIM or dados_grid.get("columnCount", 0) > 6:
+                prob.append("aba _dados ainda contém a grade temporária dos Monitoramentos")
+            dados_table = next((t for t in dados_sheet.get("tables", []) if t.get("name") == "Dados_EJ"), None)
+            if dados_table and dados_table.get("range", {}).get("endColumnIndex", 0) > 6:
+                prob.append("tabela Dados_EJ ainda contém colunas temporárias dos Monitoramentos")
             nomes = {n["name"] for n in meta.get("namedRanges", [])}
             for n in ("Dados_Campo", "Dados_Valor"):
                 if n not in nomes:
@@ -214,7 +221,7 @@ def main():
                     prob.append(f"{t}: a conta de serviço não pode editar a área protegida")
 
             # valores
-            rng = [f"'{t}'!A1:BZ{S.DADOS_ACUM_FIM if t == '_dados' else 1000}" for t in ABAS]
+            rng = [f"'{t}'!A1:BZ1000" for t in ABAS]
             bu = S.com_retry(sh.spreadsheets().values().batchGet(
                 spreadsheetId=sid, ranges=rng, valueRenderOption="UNFORMATTED_VALUE",
                 dateTimeRenderOption="SERIAL_NUMBER"))["valueRanges"]
@@ -224,7 +231,7 @@ def main():
             FV = {t: celulas(v.get("values", []), 1, 0) for t, v in zip(ABAS, bf)}
             formulas = S.com_retry(sh.spreadsheets().values().batchGet(
                 spreadsheetId=sid,
-                ranges=["'Premiação'!G13:G59", "'Monitoramento Geral'!B8", "'Monitoramento Acumulado'!B8"],
+                ranges=["'Premiação'!G13:G59"],
                 valueRenderOption="FORMULA"))["valueRanges"]
             prem_formulas = formulas[0].get("values", [])
             if any(str(FV["Premiação"].get((r, 7), "")).strip() and
@@ -232,11 +239,6 @@ def main():
                     not str(prem_formulas[r - 13][0]).startswith("="))
                    for r in range(13, 60)):
                 prob.append("Premiação: há valor de critério que não vem de fórmula")
-            for titulo, item in zip(("Monitoramento Geral", "Monitoramento Acumulado"), formulas[1:]):
-                valor = (item.get("values") or [[""]])[0][0]
-                if not str(valor).startswith("="):
-                    prob.append(f"{titulo}: B8 não contém a fórmula dinâmica")
-
             # erros de fórmula
             for t in ABAS:
                 # na _dados, a série "Faturamento real" do gráfico (coluna F) usa #N/A de propósito
@@ -265,7 +267,7 @@ def main():
                 r0 = int(m[2])
                 vals = b["values"]
                 lido = U[aba]
-                if aba == "_dados" and c0 == 0:
+                if aba == "_dados":
                     # a hora da última atualização muda a cada rodada; confere à parte
                     vals = [row for row in vals if row[0] != "Controle | Última atualização"]
                     lido = {k: v for k, v in lido.items() if k[0] >= 2}
@@ -277,22 +279,15 @@ def main():
                     if extras:
                         prob.append(f"_dados: {len(extras)} campo(s) a mais que o esperado")
                     continue
-                if aba == "_dados":
-                    fim = S.DADOS_GERAL_FIM if r0 == S.DADOS_GERAL_INICIO else S.DADOS_ACUM_FIM
-                    limite = c0 + len(vals[0]) - 1 if vals else c0
-                    lido = {k: v for k, v in lido.items()
-                            if r0 <= k[0] <= fim and c0 <= k[1] <= limite}
                 comparar_bloco(vals, lido, r0, c0, aba, prob, limite=c0 + len(vals[0]) - 1 if vals else None)
-            bloco_g = next((b for b in blocos if b["range"].startswith(f"'_dados'!{S.letra(S.DADOS_COL)}{S.DADOS_GERAL_INICIO}")), None)
-            bloco_a = next((b for b in blocos if b["range"].startswith(f"'_dados'!{S.letra(S.DADOS_COL)}{S.DADOS_ACUM_INICIO}")), None)
-            esperado_g = [r[1:] for r in bloco_g["values"]] if bloco_g else []
-            esperado_a = [r[1:] for r in bloco_a["values"]] if bloco_a else []
-            lido_g = {k: v for k, v in U["Monitoramento Geral"].items() if k[0] >= 8 and k[1] >= 1}
-            lido_a = {k: v for k, v in U["Monitoramento Acumulado"].items() if k[0] >= 8 and k[1] >= 1}
-            comparar_bloco(esperado_g, lido_g, 8, 1, "Monitoramento Geral", prob,
-                           limite=len(S.COLS_GERAL))
-            comparar_bloco(esperado_a, lido_a, 8, 1, "Monitoramento Acumulado", prob,
-                           limite=len(S.COLS_ACUM))
+            if not any(b["range"].startswith("'Monitoramento Geral'") for b in blocos):
+                sobra = [k for k in U["Monitoramento Geral"] if k[0] >= 8 and k[1] >= 1]
+                if sobra:
+                    prob.append(f"Monitoramento Geral: {len(sobra)} célula(s) preenchidas numa EJ sem contratos")
+            if not any(b["range"].startswith("'Monitoramento Acumulado'") for b in blocos):
+                sobra = [k for k in U["Monitoramento Acumulado"] if k[0] >= 8 and k[1] >= 1]
+                if sobra:
+                    prob.append(f"Monitoramento Acumulado: {len(sobra)} célula(s) preenchidas numa EJ sem meses")
 
             # mestre, contado direto
             linhas_g = [r for r in gm.get(eid, []) if tem_contrato(r)]

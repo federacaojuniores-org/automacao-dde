@@ -1,11 +1,11 @@
 """
 Distribui os dados da planilha mestre (00 - TRACKING [DDE 26]) para as planilhas individuais das EJs.
 
-Cada EJ tem uma cópia do modelo "Tracking da EJ". Este script grava valores somente na aba
-_dados; todas as outras abas são fórmulas do modelo:
+Cada EJ tem uma cópia do modelo "Tracking da EJ". Indicadores e premiações entram em _dados;
+os dois monitoramentos recebem diretamente as linhas tabulares do Portal:
   _dados!A2:B              pares "Fonte | campo" -> valor
-  _dados!H2:BG             contratos de 2026 da EJ
-  _dados!H1005:BN          linhas mês a mês da EJ
+  Monitoramento Geral!B8   contratos de 2026 da EJ
+  Monitoramento Acumulado!B8  linhas mês a mês da EJ
 
 A lista de EJs vem da aba de acessos da mestre. As colunas são achadas pelo cabeçalho (ID, EJ,
 ID da planilha, Última sincronização, Status), então dá para mudar a ordem ou incluir outras.
@@ -57,13 +57,7 @@ TABELAS_MESTRE = {
     "acessos": "Planilhas_EJs",
 }
 
-# Seções tabulares na aba _dados. A coluna H guarda um marcador; os dados começam na I.
-DADOS_COL = 7
 DADOS_CAMPOS_FIM = 500
-DADOS_GERAL_INICIO = 2
-DADOS_GERAL_FIM = 1001
-DADOS_ACUM_INICIO = 1005
-DADOS_ACUM_FIM = 1020
 
 MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
          "setembro", "outubro", "novembro", "dezembro"]
@@ -618,23 +612,15 @@ def montar_ej(ix, snap, cfg, eid, agora):
         soma += r[ic] if isinstance(r[ic], (int, float)) else 0
         r[ia] = soma
 
-    if len(geral) > DADOS_GERAL_FIM - DADOS_GERAL_INICIO + 1:
-        raise ValueError("mais contratos do que cabem na seção de Monitoramento Geral em _dados")
-    if len(acum) > DADOS_ACUM_FIM - DADOS_ACUM_INICIO + 1:
-        raise ValueError("mais meses do que cabem na seção de Monitoramento Acumulado em _dados")
     blocos = [{"range": f"'_dados'!A2:B{1 + len(dados)}", "values": dados}]
     if geral:
-        blocos.append({"range": f"'_dados'!{letra(DADOS_COL)}{DADOS_GERAL_INICIO}",
-                       "values": [[eid, *row] for row in geral]})
+        blocos.append({"range": "'Monitoramento Geral'!B8", "values": geral})
     if acum:
-        blocos.append({"range": f"'_dados'!{letra(DADOS_COL)}{DADOS_ACUM_INICIO}",
-                       "values": [[eid, *row] for row in acum]})
-    # o que sobrar de uma rodada anterior é apagado apenas dentro da aba _dados
+        blocos.append({"range": "'Monitoramento Acumulado'!B8", "values": acum})
+    # o que sobrar de uma rodada anterior é apagado depois da nova escrita
     limpar = [f"'_dados'!A{2 + len(dados)}:B{DADOS_CAMPOS_FIM}",
-              f"'_dados'!{letra(DADOS_COL)}{DADOS_GERAL_INICIO + len(geral)}:"
-              f"{letra(DADOS_COL + len(COLS_GERAL))}{DADOS_GERAL_FIM}",
-              f"'_dados'!{letra(DADOS_COL)}{DADOS_ACUM_INICIO + len(acum)}:"
-              f"{letra(DADOS_COL + len(COLS_ACUM))}{DADOS_ACUM_FIM}"]
+              f"'Monitoramento Geral'!B{8 + len(geral)}:AZ1000",
+              f"'Monitoramento Acumulado'!B{8 + len(acum)}:BG1000"]
     return nome, blocos, limpar, avisos
 
 
@@ -668,16 +654,16 @@ def garantir_grade_dados(service, sid):
     sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == "_dados")
     props = sheet["properties"]
     grid = props["gridProperties"]
-    colunas = DADOS_COL + 1 + max(len(COLS_GERAL), len(COLS_ACUM))
+    colunas = 6
     requests = []
     if not props.get("hidden"):
         requests.append({"updateSheetProperties": {
             "properties": {"sheetId": props["sheetId"], "hidden": True},
             "fields": "hidden",
         }})
-    if grid["rowCount"] < DADOS_ACUM_FIM:
+    if grid["rowCount"] < DADOS_CAMPOS_FIM:
         requests.append({"appendDimension": {"sheetId": props["sheetId"], "dimension": "ROWS",
-                                               "length": DADOS_ACUM_FIM - grid["rowCount"]}})
+                                               "length": DADOS_CAMPOS_FIM - grid["rowCount"]}})
     if grid["columnCount"] < colunas:
         requests.append({"appendDimension": {"sheetId": props["sheetId"], "dimension": "COLUMNS",
                                                "length": colunas - grid["columnCount"]}})
@@ -696,12 +682,43 @@ def garantir_grade_dados(service, sid):
         com_retry(service.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": requests}))
 
 
+def compactar_grade_dados(service, sid):
+    meta = com_retry(service.spreadsheets().get(
+        spreadsheetId=sid,
+        fields="sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),tables(tableId,name,range))"))
+    sheet = next(s for s in meta["sheets"] if s["properties"]["title"] == "_dados")
+    props = sheet["properties"]
+    grid = props["gridProperties"]
+    requests = []
+    table = next((t for t in sheet.get("tables", []) if t.get("name") == "Dados_EJ"), None)
+    if table and table.get("range", {}).get("endColumnIndex", 0) > 6:
+        rng = dict(table["range"])
+        rng["endColumnIndex"] = 6
+        requests.append({"updateTable": {
+            "table": {"tableId": table["tableId"], "range": rng},
+            "fields": "range",
+        }})
+    if grid["columnCount"] > 6:
+        requests.append({"deleteDimension": {
+            "range": {"sheetId": props["sheetId"], "dimension": "COLUMNS",
+                      "startIndex": 6, "endIndex": grid["columnCount"]},
+        }})
+    if grid["rowCount"] > DADOS_CAMPOS_FIM:
+        requests.append({"deleteDimension": {
+            "range": {"sheetId": props["sheetId"], "dimension": "ROWS",
+                      "startIndex": DADOS_CAMPOS_FIM, "endIndex": grid["rowCount"]},
+        }})
+    if requests:
+        com_retry(service.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": requests}))
+
+
 def gravar(service, sid, blocos, limpar):
     # grava primeiro e limpa depois: se a escrita falhar, a EJ continua vendo os dados anteriores
     garantir_grade_dados(service, sid)
     v = service.spreadsheets().values()
     com_retry(v.batchUpdate(spreadsheetId=sid, body={"valueInputOption": "RAW", "data": blocos}))
     com_retry(v.batchClear(spreadsheetId=sid, body={"ranges": limpar}))
+    compactar_grade_dados(service, sid)
 
 
 def buscar_na_pasta(drive, pasta, nome):

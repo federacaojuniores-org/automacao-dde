@@ -17,11 +17,8 @@ ABAS = {
         "Engajamento com o MEJ (ECM)",
         "PI aprovado?",
     ),
-    "Monitoramento Geral": (),
-    "Monitoramento Acumulado": (),
 }
 COLUNAS_PRESERVADAS = {"Simulador": (1, 7)}
-DADOS_DINAMICOS = {"Monitoramento Geral": 1000, "Monitoramento Acumulado": 16}
 MAX_RANGE = "A1:ZZ1000"
 CELL_FIELDS = "userEnteredValue,userEnteredFormat,dataValidation,note,textFormatRuns"
 
@@ -84,24 +81,6 @@ def requests_dimensao(sheet_id, tipo, metadata):
     return requests
 
 
-def requests_formatos_dinamicos(sheet_id, source_rows, colunas, linhas):
-    template = source_rows[7].get("values", []) if len(source_rows) > 7 else []
-    requests = []
-    inicio, anterior = 0, None
-    for i in range(colunas + 1):
-        fmt = copy.deepcopy(template[i].get("userEnteredFormat")) if i < len(template) else None
-        if fmt != anterior:
-            if anterior is not None:
-                requests.append({"repeatCell": {
-                    "range": {"sheetId": sheet_id, "startRowIndex": 7, "endRowIndex": 7 + linhas,
-                              "startColumnIndex": inicio, "endColumnIndex": i},
-                    "cell": {"userEnteredFormat": anterior},
-                    "fields": "userEnteredFormat",
-                }})
-            inicio, anterior = i, fmt
-    return requests
-
-
 def fonte(service, modelo_id):
     v = service.spreadsheets().values()
     valores = {}
@@ -147,9 +126,7 @@ def planejar_aba(titulo, src, src_values, dst, dst_values, id_map):
     src_id, dst_id = src["properties"]["sheetId"], dst["properties"]["sheetId"]
     src_h, src_w = dimensoes(src_values)
     dst_h, dst_w = dimensoes(dst_values)
-    linhas_dinamicas = DADOS_DINAMICOS.get(titulo, 0)
-    h = max(src_h, dst_h, 7 + linhas_dinamicas, 1)
-    w = max(src_w, dst_w, 1)
+    h, w = max(src_h, dst_h, 1), max(src_w, dst_w, 1)
     requests = []
     grid = dst["properties"]["gridProperties"]
     if grid["rowCount"] < h:
@@ -166,27 +143,17 @@ def planejar_aba(titulo, src, src_values, dst, dst_values, id_map):
 
     source_rows = (src.get("data") or [{}])[0].get("rowData", [])
     rows = []
-    linhas_copiadas = src_h if linhas_dinamicas else h
-    for i in range(linhas_copiadas):
+    for i in range(h):
         values = copy.deepcopy(source_rows[i].get("values", [])) if i < len(source_rows) else []
         values = [{k: cell[k] for k in ("userEnteredValue", "userEnteredFormat", "dataValidation", "note", "textFormatRuns") if k in cell}
                   for cell in values]
         rows.append({"values": values + [{} for _ in range(w - len(values))]})
     requests.append({"updateCells": {
-        "range": {"sheetId": dst_id, "startRowIndex": 0, "endRowIndex": linhas_copiadas,
+        "range": {"sheetId": dst_id, "startRowIndex": 0, "endRowIndex": h,
                   "startColumnIndex": 0, "endColumnIndex": w},
         "rows": rows,
         "fields": CELL_FIELDS,
     }})
-    if linhas_dinamicas and h > src_h:
-        requests.append({"repeatCell": {
-            "range": {"sheetId": dst_id, "startRowIndex": src_h, "endRowIndex": h,
-                      "startColumnIndex": 0, "endColumnIndex": w},
-            "cell": {},
-            "fields": "userEnteredValue",
-        }})
-        requests += requests_formatos_dinamicos(dst_id, source_rows, src_w, linhas_dinamicas)
-
     preserve = COLUNAS_PRESERVADAS.get(titulo)
     if preserve:
         label_col, value_col = preserve

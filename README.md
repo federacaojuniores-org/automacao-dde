@@ -16,7 +16,7 @@ Como Funciona (Arquitetura)
 ## Estrutura de Arquivos
 
 *   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2), às 05:30 e 17:30.
-*   `sync_planilhas_ejs.py`: Copia os dados de cada EJ da planilha mestre somente para a aba oculta `_dados` da planilha individual.
+*   `sync_planilhas_ejs.py`: Copia indicadores e premiações para `_dados` e cola diretamente as linhas dos dois Monitoramentos.
 *   `campos_dados_ej.json`: Catálogo editável dos campos adicionais que entram em `_dados`, incluindo premiações.
 *   `config_planilhas_ejs.json`: Configuração operacional: modelo, pasta, aba de acessos e título da premiação vigente.
 *   `test_exact_downloads.py`: Script do Playwright para navegação e download do portal BJ.
@@ -79,7 +79,7 @@ Para acompanhar a execução, basta abrir a aba **Actions** do seu repositório 
 
 ## Planilhas individuais das EJs (Fase 3)
 
-Cada EJ tem uma cópia do modelo "Tracking da EJ". O `sync_planilhas_ejs.py` roda automaticamente depois da atualização bem-sucedida da mestre e grava valores exclusivamente na aba oculta `_dados`. Visão Geral, Premiação, Simulador e os dois Monitoramentos são visões dinâmicas por fórmula, sem ligação externa com a matriz.
+Cada EJ tem uma cópia do modelo "Tracking da EJ". O `sync_planilhas_ejs.py` roda automaticamente depois da atualização bem-sucedida da mestre. Indicadores e premiações são gravados na aba oculta `_dados`; Visão Geral, Premiação e Simulador consultam essa base por fórmula. Monitoramento Geral e Monitoramento Acumulado recebem diretamente as linhas filtradas do Portal.
 
 **Aba de acessos na mestre** (`[ACESSO] Planilhas EJs`): uma linha por EJ com as colunas ID, EJ, E-mail do(a) presidente, ID da planilha, Link, Última sincronização e Status. O script lê as quatro primeiras e escreve as duas últimas. Linhas sem ID da planilha ficam com o status "Sem ID da planilha". Se a aba não existir, a fase 3 termina sem fazer nada.
 
