@@ -295,6 +295,11 @@ def carregar_campos(service=None, tabelas=None, path=CAMPOS_PATH):
     duplicadas = sorted({k for k in chaves if k and chaves.count(k) > 1})
     if duplicadas:
         erros.append("chaves duplicadas: " + ", ".join(duplicadas))
+    if service is not None:
+        chaves = set(chaves)
+        obrigatorias = {"Painel | ID", "Painel | EJ"}
+        if obrigatorias - chaves:
+            erros.append("campos obrigatórios inativos ou ausentes: " + ", ".join(sorted(obrigatorias - chaves)))
     if erros:
         raise ValueError(f"{origem} inválido — " + " | ".join(erros))
     return campos
@@ -591,7 +596,7 @@ def montar_ej(ix, snap, cfg, eid, agora):
     ano = (EPOCH + timedelta(days=ref)).year if isinstance(ref, float) else agora.year
 
     # _dados
-    pares = list(painel) + ix["farol"][eid] + ix["cors"][eid]
+    pares = campos_configurados(ix, eid, nome)
     corte = data_corte_premiacao(snap, cfg)
     pares += [
         ("Controle | Data de referência", ref),
@@ -601,7 +606,7 @@ def montar_ej(ix, snap, cfg, eid, agora):
         ("Controle | Data comparável CORS 2025", to_serial(ix["datas_cors"][1])),
         ("Controle | Nome da premiação", cfg["premiacao"]["nome"]),
         ("Controle | Data de corte premiação", corte),
-    ] + ix["regua"] + campos_configurados(ix, eid, nome)
+    ] + ix["regua"]
     if len(ix["regua"]) != 10:
         raise ValueError("régua de cluster incompleta no Farol (esperados 5 clusters)")
     dados = [[k, "" if v is None else v] for k, v in pares]

@@ -12,16 +12,19 @@ class SyncResilienceTest(unittest.TestCase):
     def test_live_field_configuration_comes_from_master_table(self):
         rows = [
             ["ATIVO", "TABELA_ORIGEM", "BUSCAR_POR", "CAMPO_ORIGEM", "CHAVE_DADOS", "FORMATO"],
+            [True, "Painel_Analise", "ID", "ID", "Painel | ID", "bruto"],
+            [True, "Painel_Analise", "ID", "EJ", "Painel | EJ", "bruto"],
             [True, "Premio_ENCEJ", "EJ", "IMS", "Premiação | IMS", "formatado"],
             [False, "Premio_ENCEJ", "EJ", "Rank P1", "Premiação | Rank P1", "formatado"],
         ]
         service = MagicMock()
         tables = {sync.TABELA_CAMPOS: ("[CONTROLE] Tracking EJs", {
-            "startRowIndex": 0, "endRowIndex": 3, "startColumnIndex": 8, "endColumnIndex": 14,
+            "startRowIndex": 0, "endRowIndex": 5, "startColumnIndex": 8, "endColumnIndex": 14,
         })}
         with patch.object(sync, "com_retry", return_value={"values": rows}):
             campos = sync.carregar_campos(service, tables)
-        self.assertEqual([c["chave"] for c in campos], ["Premiação | IMS"])
+        self.assertEqual([c["chave"] for c in campos],
+                         ["Painel | ID", "Painel | EJ", "Premiação | IMS"])
 
     def test_google_internal_error_is_retried(self):
         class HttpError(Exception):

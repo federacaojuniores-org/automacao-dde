@@ -81,7 +81,7 @@ Para acompanhar a execução, basta abrir a aba **Actions** do seu repositório 
 
 Cada EJ tem uma cópia do modelo "Tracking da EJ". O `sync_planilhas_ejs.py` roda automaticamente depois da atualização bem-sucedida da mestre. Indicadores e premiações são gravados na aba oculta `_dados`; Visão Geral, Premiação e Simulador consultam essa base por fórmula. Monitoramento Geral e Monitoramento Acumulado recebem diretamente as linhas filtradas do Portal.
 
-**Aba de controle na mestre** (`[CONTROLE] Tracking EJs`): contém as tabelas nativas `Planilhas_EJs`, com uma linha por EJ, e `Campos_Dados_EJ`, que controla quais campos adicionais entram em `_dados`. O código localiza ambas pelo nome da tabela, então a posição delas na aba não interfere no fluxo.
+**Aba de controle na mestre** (`[CONTROLE] Tracking EJs`): contém as tabelas nativas `Planilhas_EJs`, com uma linha por EJ, e `Campos_Dados_EJ`, que controla todos os campos vindos de tabelas que entram em `_dados`. O código localiza ambas pelo nome da tabela, então a posição delas na aba não interfere no fluxo. Apenas campos internos de `Controle |` e `Régua |` são gerados pelo sistema e não aparecem nessa configuração.
 
 **Criar a planilha de uma EJ nova:** faça uma cópia do modelo no Drive, compartilhe com a conta de serviço como editora e cole o ID na aba de acessos. A conta de serviço não tem cota no Drive, então não consegue criar arquivos. O compartilhamento com a presidência é feito por uma pessoa e o script não mexe nele.
 
