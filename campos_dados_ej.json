@@ -1,6 +1,6 @@
 {
   "_como_usar": [
-    "Este arquivo controla campos adicionais publicados como linhas em _dados.",
+    "Cópia de recuperação da tabela Campos_Dados_EJ da planilha mestre; nas execuções reais, edite a tabela na planilha.",
     "Para adicionar um campo, copie um objeto, informe a tabela nativa da matriz e o cabeçalho exato da coluna.",
     "buscar_por aceita ID ou EJ. Use ID sempre que a tabela tiver essa coluna.",
     "formato aceita bruto ou formatado. Use formatado para dinheiro, percentuais e posições exibidas como texto.",

@@ -17,7 +17,7 @@ Como Funciona (Arquitetura)
 
 *   `daily_sync.py`: Script orquestrador central (Phase 1 -> Phase 2), às 05:30 e 17:30.
 *   `sync_planilhas_ejs.py`: Copia indicadores e premiações para `_dados` e cola diretamente as linhas dos dois Monitoramentos.
-*   `campos_dados_ej.json`: Catálogo editável dos campos adicionais que entram em `_dados`, incluindo premiações.
+*   `campos_dados_ej.json`: Cópia de recuperação do catálogo; a fonte oficial é a tabela `Campos_Dados_EJ` na matriz.
 *   `config_planilhas_ejs.json`: Configuração operacional: modelo, pasta, aba de acessos e título da premiação vigente.
 *   `test_exact_downloads.py`: Script do Playwright para navegação e download do portal BJ.
 *   `update_sheets.py`: Script de leitura de Excel e escrita auto-alinhada no Google Sheets via API.
@@ -81,13 +81,17 @@ Para acompanhar a execução, basta abrir a aba **Actions** do seu repositório 
 
 Cada EJ tem uma cópia do modelo "Tracking da EJ". O `sync_planilhas_ejs.py` roda automaticamente depois da atualização bem-sucedida da mestre. Indicadores e premiações são gravados na aba oculta `_dados`; Visão Geral, Premiação e Simulador consultam essa base por fórmula. Monitoramento Geral e Monitoramento Acumulado recebem diretamente as linhas filtradas do Portal.
 
-**Aba de acessos na mestre** (`[ACESSO] Planilhas EJs`): uma linha por EJ com as colunas ID, EJ, E-mail do(a) presidente, ID da planilha, Link, Última sincronização e Status. O script lê as quatro primeiras e escreve as duas últimas. Linhas sem ID da planilha ficam com o status "Sem ID da planilha". Se a aba não existir, a fase 3 termina sem fazer nada.
+**Aba de controle na mestre** (`[CONTROLE] Tracking EJs`): contém as tabelas nativas `Planilhas_EJs`, com uma linha por EJ, e `Campos_Dados_EJ`, que controla quais campos adicionais entram em `_dados`. O código localiza ambas pelo nome da tabela, então a posição delas na aba não interfere no fluxo.
 
 **Criar a planilha de uma EJ nova:** faça uma cópia do modelo no Drive, compartilhe com a conta de serviço como editora e cole o ID na aba de acessos. A conta de serviço não tem cota no Drive, então não consegue criar arquivos. O compartilhamento com a presidência é feito por uma pessoa e o script não mexe nele.
 
-**Adicionar ou retirar dados:** edite `campos_dados_ej.json`. Cada item informa a tabela nativa da matriz, se a EJ será localizada por `ID` ou `EJ`, o cabeçalho da coluna, a chave publicada em `_dados` e se o valor deve ser bruto ou formatado. Apagar um item ou definir `ativo` como `false` remove o campo na sincronização seguinte. Antes de escrever, o fluxo valida tabelas, colunas, chaves duplicadas e a existência de cada EJ.
+**Adicionar ou retirar dados:** edite a tabela `Campos_Dados_EJ` na matriz. Cada linha informa a tabela nativa de origem, se a EJ será localizada por `ID` ou `EJ`, o cabeçalho da coluna, a chave publicada em `_dados` e se o valor deve ser bruto ou formatado. Desmarcar `ATIVO` remove o campo na sincronização seguinte. Antes de escrever, o fluxo valida tabelas, colunas, chaves duplicadas e a existência de cada EJ.
 
-**Trocar a premiação:** adicione os campos da nova tabela em `campos_dados_ej.json` e altere a aba Premiação no modelo para consultar as novas chaves com `XLOOKUP`. Os rankings atuais estão declarados com `ativo: false` para não serem publicados às EJs.
+**Trocar a premiação:** adicione os campos da nova tabela em `Campos_Dados_EJ` e altere a aba Premiação no modelo para consultar as novas chaves com `XLOOKUP`. Os rankings atuais estão desativados para não serem publicados às EJs.
+
+### Controles de execução — mapeados, não implementados
+
+Uma futura área de botões pode disparar os workflows `Daily Tracking Synchronization`, `Planilhas das EJs`, `Aplicar modelo às EJs` e `Validar planilhas das EJs`. Para execução imediata, o caminho recomendado é um Web App privado da organização chamando `workflow_dispatch` no GitHub, sem token armazenado na planilha. A API pública do cron-job.org permite consultar, criar, alterar, ativar e desativar jobs e ler o histórico, mas não documenta um endpoint para executar um job imediatamente; por isso ela não é a melhor base para esses botões.
 
 ```bash
 python sync_planilhas_ejs.py --dry-run          # lê a mestre e mostra o que seria gravado

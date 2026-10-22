@@ -56,6 +56,7 @@ TABELAS_MESTRE = {
     "premio": "Premio_ENCEJ",
     "acessos": "Planilhas_EJs",
 }
+TABELA_CAMPOS = "Campos_Dados_EJ"
 
 DADOS_CAMPOS_FIM = 500
 
@@ -250,11 +251,36 @@ def letra(j):
     return s
 
 
-def carregar_campos(path=CAMPOS_PATH):
-    """Lê e valida os campos adicionais publicados em _dados."""
-    with open(path, encoding="utf-8") as arquivo:
-        config = json.load(arquivo)
-    campos = [c for c in config.get("campos", []) if c.get("ativo", True)]
+def carregar_campos(service=None, tabelas=None, path=CAMPOS_PATH):
+    """Lê os campos da tabela da mestre; o JSON serve só para testes e recuperação."""
+    if service is not None:
+        if TABELA_CAMPOS not in (tabelas or {}):
+            raise ValueError(f"Tabela {TABELA_CAMPOS} ausente na planilha mestre")
+        result = com_retry(service.spreadsheets().values().get(
+            spreadsheetId=MASTER_ID, range=intervalo_tabela(tabelas, TABELA_CAMPOS),
+            valueRenderOption="UNFORMATTED_VALUE"))
+        rows = result.get("values", [])
+        hdr = cabecalhos(rows, ("ATIVO", "TABELA_ORIGEM", "BUSCAR_POR", "CAMPO_ORIGEM",
+                                 "CHAVE_DADOS", "FORMATO"), TABELA_CAMPOS)
+        pos = {nome: hdr.index(nome) for nome in hdr}
+        campos = []
+        for raw in rows[1:]:
+            row = pad(raw, len(hdr))
+            if row[pos["ATIVO"]] is not True:
+                continue
+            campos.append({
+                "tabela": str(row[pos["TABELA_ORIGEM"]]).strip(),
+                "buscar_por": str(row[pos["BUSCAR_POR"]]).strip(),
+                "campo": str(row[pos["CAMPO_ORIGEM"]]).strip(),
+                "chave": str(row[pos["CHAVE_DADOS"]]).strip(),
+                "formato": str(row[pos["FORMATO"]]).strip(),
+            })
+        origem = TABELA_CAMPOS
+    else:
+        with open(path, encoding="utf-8") as arquivo:
+            config = json.load(arquivo)
+        campos = [c for c in config.get("campos", []) if c.get("ativo", True)]
+        origem = "campos_dados_ej.json"
     obrigatorios = ("tabela", "buscar_por", "campo", "chave", "formato")
     erros = []
     for i, campo in enumerate(campos, 1):
@@ -270,7 +296,7 @@ def carregar_campos(path=CAMPOS_PATH):
     if duplicadas:
         erros.append("chaves duplicadas: " + ", ".join(duplicadas))
     if erros:
-        raise ValueError("campos_dados_ej.json inválido — " + " | ".join(erros))
+        raise ValueError(f"{origem} inválido — " + " | ".join(erros))
     return campos
 
 
@@ -806,10 +832,10 @@ def main():
     args = ap.parse_args()
 
     cfg = json.load(open(CONFIG_PATH, encoding="utf-8"))
-    campos = carregar_campos()
     agora = datetime.now(BRT)
     service = None
     if args.snapshot:
+        campos = carregar_campos()
         snap = json.load(open(args.snapshot, encoding="utf-8"))
     else:
         from google.oauth2 import service_account
@@ -829,9 +855,11 @@ def main():
             print(f"  https://docs.google.com/spreadsheets/d/{mid}/edit")
             return
         tabelas = mapear_tabelas(service)
+        campos = carregar_campos(service, tabelas)
         snap = {
             "acessos": ler_acessos(service, cfg, tabelas),
             "acessos_inicio": tabelas[TABELAS_MESTRE["acessos"]][1].get("startRowIndex", 0),
+            "acessos_aba": tabelas[TABELAS_MESTRE["acessos"]][0],
         }
         print("Lendo a planilha mestre...")
         snap.update(ler_mestre(service, cfg, tabelas, campos))
@@ -846,6 +874,7 @@ def main():
     # EJ sem planilha ganha uma cópia do modelo na pasta do drive compartilhado
     if service and not args.dry_run:
         ca = colunas_acesso(snap)
+        aba_acessos = snap.get("acessos_aba", cfg["aba_acessos"])
         novas = []
         for a in alvo:
             if a["planilha"] or not a["linha"]:
@@ -853,7 +882,7 @@ def main():
             nome_arq = cfg["nome_planilha"].format(ej=a["ej"] or a["id"])
             try:
                 a["planilha"], criada = copiar(drive, cfg["modelo_id"], cfg["pasta_planilhas"], nome_arq)
-                novas.append({"range": f"'{cfg['aba_acessos']}'!{letra(ca['planilha'])}{a['linha']}", "values": [[a["planilha"]]]})
+                novas.append({"range": f"'{aba_acessos}'!{letra(ca['planilha'])}{a['linha']}", "values": [[a["planilha"]]]})
                 print(f"  {a['id']:>4} planilha {'criada' if criada else 'reaproveitada'}: {nome_arq} ({a['planilha']})")
                 time.sleep(1)
             except Exception as e:
@@ -888,11 +917,12 @@ def main():
     if service and not args.dry_run and any(l for l, _ in status):
         quando = agora.strftime("%d/%m/%Y %H:%M")
         ca = colunas_acesso(snap)
+        aba_acessos = snap.get("acessos_aba", cfg["aba_acessos"])
         data = []
         for l, m in status:
             if l:
-                data += [{"range": f"'{cfg['aba_acessos']}'!{letra(ca['quando'])}{l}", "values": [[quando]]},
-                         {"range": f"'{cfg['aba_acessos']}'!{letra(ca['status'])}{l}", "values": [[m]]}]
+                data += [{"range": f"'{aba_acessos}'!{letra(ca['quando'])}{l}", "values": [[quando]]},
+                         {"range": f"'{aba_acessos}'!{letra(ca['status'])}{l}", "values": [[m]]}]
         com_retry(service.spreadsheets().values().batchUpdate(
             spreadsheetId=MASTER_ID, body={"valueInputOption": "RAW", "data": data}))
     if args.saida:

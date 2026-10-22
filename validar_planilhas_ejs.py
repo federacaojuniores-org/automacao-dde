@@ -106,7 +106,6 @@ def main():
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     cfg = json.load(open(S.CONFIG_PATH, encoding="utf-8"))
-    campos = S.carregar_campos()
     cred = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "dde-projeto-9ed22179e048.json")
     cred = cred if os.path.isabs(cred) else os.path.join(S.PROJECT_DIR, cred)
     creds = service_account.Credentials.from_service_account_file(
@@ -118,6 +117,7 @@ def main():
 
     print("Lendo a planilha mestre...")
     tabelas = S.mapear_tabelas(sh)
+    campos = S.carregar_campos(sh, tabelas)
     snap = {
         "acessos": S.ler_acessos(sh, cfg, tabelas),
         "acessos_inicio": tabelas[S.TABELAS_MESTRE["acessos"]][1].get("startRowIndex", 0),
